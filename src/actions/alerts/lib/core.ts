@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { priceAlertSchema, socialAlertSchema, type AlertState } from '../schemas';
+import { socialMonitor } from '@/lib/services/apify/social-monitor';
 import type { z } from 'zod';
 
 export async function getAuthenticatedClient() {
@@ -69,6 +70,9 @@ export async function createSocialAlert(
       .single();
 
     if (error) throw error;
+
+    // Refresh social monitoring to include new alert
+    await socialMonitor.refreshAlerts();
 
     revalidatePath('/dashboard');
     return { success: true };

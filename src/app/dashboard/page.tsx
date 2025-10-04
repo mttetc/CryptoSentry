@@ -6,10 +6,22 @@ import { AlertsClient } from '@/components/alerts/alerts-client';
 import { UserPreferences } from '@/components/settings/user-preferences';
 import { DashboardHeader } from '@/components/dashboard/dashboard-header';
 import { MonitoringStream } from '@/components/monitoring/MonitoringStream';
+import { MessagingStatus } from '@/components/messaging/messaging-status';
+import { SystemStatus } from '@/components/system/system-status';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.user.id) {
+    return <div>Please log in to access the dashboard.</div>;
+  }
+
   return (
     <DashboardShell>
       <DashboardHeader
@@ -18,6 +30,10 @@ export default function DashboardPage() {
       />
 
       <div className="grid gap-8">
+        <SystemStatus />
+
+        <MessagingStatus userId={session.user.id} />
+
         <Suspense fallback={<div className="h-[200px] animate-pulse rounded-md bg-muted" />}>
           <CreateAlertForm />
         </Suspense>

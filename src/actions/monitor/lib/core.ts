@@ -1,7 +1,6 @@
 'use server';
 
 import { monitorPrice } from '@/lib/services/monitoring/price';
-import { monitorSocial } from '@/lib/services/monitoring/social';
 import type { MonitorEvent, MonitorState } from '../schemas/monitor';
 
 export async function monitorEvent(event: MonitorEvent): Promise<MonitorState> {
@@ -14,10 +13,11 @@ export async function monitorEvent(event: MonitorEvent): Promise<MonitorState> {
         return await monitorPrice(event.data.symbol, event.data.price);
 
       case 'social':
-        if (!event.data.account || !event.data.content) {
-          throw new Error('Invalid social event data');
-        }
-        return await monitorSocial(event.data.account, event.data.content);
+        // Social monitoring will be handled by Apify service
+        return {
+          success: true,
+          message: 'Social monitoring handled by Apify service',
+        };
 
       default:
         throw new Error('Unknown event type');

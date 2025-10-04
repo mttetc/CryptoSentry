@@ -10,6 +10,7 @@ import { Suspense } from 'react';
 import { WaitlistCountSkeleton } from '@/components/waitlist/waitlist-count-skeleton';
 import { CardContainer, CardBody } from '@/components/ui/3d-card';
 import { AnimatedTestimonials } from '@/components/ui/animated-testimonials';
+import { PricingTiers } from '@/components/pricing/PricingTiers';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,8 +48,8 @@ function WaitlistHero() {
         Monitor Crypto Influencers <br className="hidden md:inline" />& Get Instant Price Alerts
       </h1>
       <p className="mx-auto mb-12 max-w-2xl text-xl text-muted-foreground">
-        Get instant notifications via SMS, Telegram, and phone calls when key influencers mention
-        tokens or when prices hit your targets. Combine both for powerful market insights.
+        Get instant Telegram voice alerts when key influencers mention tokens or when prices hit
+        your targets. Never miss a critical market movement again.
       </p>
       <div className="mx-auto max-w-md">
         <WaitlistForm />
@@ -64,8 +65,8 @@ function AppHero() {
         Monitor Crypto Influencers <br className="hidden md:inline" />& Get Instant Price Alerts
       </h1>
       <p className="mb-8 text-xl text-muted-foreground">
-        Stay ahead with combined social and price monitoring. Get instant notifications via SMS,
-        Telegram, and phone calls when influencers mention tokens or when prices reach your targets.
+        Stay ahead with combined social and price monitoring. Get instant Telegram voice alerts when
+        influencers mention tokens or when prices reach your targets.
       </p>
       <div className="flex justify-center gap-4">
         <Link href="/dashboard">
@@ -132,13 +133,15 @@ export default function LandingPage() {
                   Instant Notifications
                 </h3>
                 <p className="text-muted-foreground">
-                  Receive SMS, Telegram, and phone call alerts. Stay informed of critical market
-                  movements and influential social signals 24/7.
+                  Receive instant Telegram voice alerts. Get called immediately when influencers
+                  mention your tokens or when prices hit your targets.
                 </p>
               </div>
             </CardBody>
           </CardContainer>
         </section>
+
+        <PricingTiers />
 
         <section className="mx-auto mb-16 max-w-5xl">
           <div className="mb-12 text-center">

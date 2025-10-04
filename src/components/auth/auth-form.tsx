@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { useActionState, useState } from 'react';
+import { useActionState, useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
+import { useRouter } from 'next/navigation';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -22,6 +23,7 @@ export function AuthForm() {
   const [signInState, signInAction] = useActionState(signIn, { error: undefined, success: false });
   const [signUpState, signUpAction] = useActionState(signUp, { error: undefined, success: false });
   const { toast } = useToast();
+  const router = useRouter();
 
   // Show error or success messages
   if (signInState.error || signUpState.error) {
@@ -32,12 +34,21 @@ export function AuthForm() {
     });
   }
 
-  if (signInState.success || signUpState.success) {
-    toast({
-      title: 'Success',
-      description: isSignUp ? 'Account created successfully' : 'Signed in successfully',
-    });
-  }
+  // Handle successful authentication
+  useEffect(() => {
+    if (signInState.success || signUpState.success) {
+      toast({
+        title: 'Success',
+        description: isSignUp ? 'Account created successfully' : 'Signed in successfully',
+      });
+
+      // Redirect after a short delay to allow toast to show
+      setTimeout(() => {
+        // Middleware will handle the correct redirection based on setup status
+        router.push('/dashboard');
+      }, 1000);
+    }
+  }, [signInState.success, signUpState.success, toast, router]);
 
   return (
     <Card className="w-full max-w-md">

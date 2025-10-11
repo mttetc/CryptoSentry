@@ -48,7 +48,7 @@ export function AuthForm() {
         router.push('/dashboard');
       }, 1000);
     }
-  }, [signInState.success, signUpState.success, toast, router]);
+  }, [signInState.success, signUpState.success, toast, router, isSignUp]);
 
   return (
     <Card className="w-full max-w-md">

@@ -42,7 +42,7 @@ export const alertDeliveryLogSchema = z.object({
   alert_id: z.string(),
   user_id: z.string(),
   type: z.enum(['price', 'social']),
-  channel: z.enum(['sms', 'call']),
+  channel: z.enum(['sms', 'call', 'telegram']),
   message_id: z.string(),
   data: z.record(z.any()),
 });

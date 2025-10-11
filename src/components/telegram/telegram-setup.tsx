@@ -23,7 +23,7 @@ export function TelegramSetup({ userId, onSetupComplete }: TelegramSetupProps) {
 
   const handleStartVerification = async () => {
     setIsVerifying(true);
-    
+
     try {
       // Send verification code to user's Telegram
       const response = await fetch('/api/telegram/send-verification', {
@@ -78,7 +78,8 @@ export function TelegramSetup({ userId, onSetupComplete }: TelegramSetupProps) {
             Setup Telegram Voice Alerts
           </CardTitle>
           <CardDescription>
-            Connect your Telegram account to receive instant voice alerts when crypto influencers mention your tokens.
+            Connect your Telegram account to receive instant voice alerts when crypto influencers
+            mention your tokens.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -126,14 +127,14 @@ export function TelegramSetup({ userId, onSetupComplete }: TelegramSetupProps) {
                   onChange={(e) => setTelegramUsername(e.target.value)}
                   className="mt-1"
                 />
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="mt-1 text-sm text-muted-foreground">
                   Enter your Telegram username (without @)
                 </p>
               </div>
             </div>
           </div>
 
-          <Button 
+          <Button
             onClick={handleStartVerification}
             disabled={!telegramUsername || isVerifying}
             className="w-full"
@@ -154,13 +155,14 @@ export function TelegramSetup({ userId, onSetupComplete }: TelegramSetupProps) {
             Verify Your Telegram
           </CardTitle>
           <CardDescription>
-            We've sent a verification code to your Telegram. Enter it below to complete the setup.
+            We&apos;ve sent a verification code to your Telegram. Enter it below to complete the
+            setup.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="text-center">
             <div className="mb-4">
-              <MessageSquare className="h-12 w-12 text-primary mx-auto mb-2" />
+              <MessageSquare className="mx-auto mb-2 h-12 w-12 text-primary" />
               <p className="text-sm text-muted-foreground">
                 Check your Telegram conversation with @{botUsername}
               </p>
@@ -179,14 +181,10 @@ export function TelegramSetup({ userId, onSetupComplete }: TelegramSetupProps) {
           </div>
 
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setStep('instructions')}
-              className="flex-1"
-            >
+            <Button variant="outline" onClick={() => setStep('instructions')} className="flex-1">
               Back
             </Button>
-            <Button 
+            <Button
               onClick={handleVerifyCode}
               disabled={verificationCode.length !== 6}
               className="flex-1"
@@ -208,15 +206,15 @@ export function TelegramSetup({ userId, onSetupComplete }: TelegramSetupProps) {
             Telegram Connected!
           </CardTitle>
           <CardDescription>
-            Your Telegram account is now connected. You'll receive instant voice alerts!
+            Your Telegram account is now connected. You&apos;ll receive instant voice alerts!
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="text-center">
             <div className="mb-4">
-              <Phone className="h-12 w-12 text-green-500 mx-auto mb-2" />
+              <Phone className="mx-auto mb-2 h-12 w-12 text-green-500" />
               <p className="text-sm text-muted-foreground">
-                You're all set! You'll now receive instant Telegram alerts when:
+                You&apos;re all set! You&apos;ll now receive instant Telegram alerts when:
               </p>
             </div>
           </div>

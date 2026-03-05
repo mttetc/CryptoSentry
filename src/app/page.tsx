@@ -11,16 +11,17 @@ function AppHero() {
   return (
     <section className="mx-auto mb-16 max-w-4xl text-center">
       <h1 className="mb-6 font-display text-4xl font-semibold leading-[1.1] tracking-tight md:text-5xl md:leading-[1.1]">
-        Monitor Crypto Influencers <br className="hidden md:inline" />& Get Instant Alerts
+        Catch Token Pumps <br className="hidden md:inline" />
+        Before the Crowd
       </h1>
       <p className="mb-8 text-xl text-muted-foreground">
-        Stay ahead with X monitoring and Telegram alerts. Get instant notifications when influencers
-        mention your tokens.
+        For crypto traders who need to act fast. Get instant Telegram alerts the moment top
+        influencers mention your tokens.
       </p>
       <div className="flex justify-center gap-4">
         <Link href="/dashboard">
           <Button size="lg" className="gap-2">
-            Get Started <ArrowRight className="h-4 w-4" />
+            Start Tracking Free <ArrowRight className="h-4 w-4" />
           </Button>
         </Link>
       </div>

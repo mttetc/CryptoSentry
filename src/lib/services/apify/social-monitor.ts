@@ -1,6 +1,7 @@
-'use server';
+// Social monitor service - Now using webhooks for real-time monitoring
 
 import { apifyClient, type Tweet } from './apify-client';
+import { apifyWebhookManager } from './webhook-manager';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { broadcastUpdate } from '@/actions/monitor/lib/realtime';
 import { sendUnifiedAlert } from '@/actions/messaging/unified-notifications';
@@ -22,43 +23,40 @@ interface AlertTrigger {
 
 export class SocialMonitor {
   private activeAlerts: Map<string, SocialAlert[]> = new Map();
-  private monitoringInterval: NodeJS.Timeout | null = null;
+  private webhookId: string | null = null;
   private isMonitoring = false;
 
   async startMonitoring(): Promise<void> {
     if (this.isMonitoring) {
-      console.log('Social monitoring already running');
+      console.warn('Social monitoring already running');
       return;
     }
 
-    console.log('Starting social monitoring...');
+    console.warn('Starting social monitoring with webhooks...');
     this.isMonitoring = true;
 
     // Load active alerts
     await this.loadActiveAlerts();
 
-    // Start monitoring loop every 2 minutes
-    this.monitoringInterval = setInterval(
-      async () => {
-        try {
-          await this.checkAllAlerts();
-        } catch (error) {
-          console.error('Error in monitoring loop:', error);
-        }
-      },
-      2 * 60 * 1000
-    ); // 2 minutes
+    // Create webhook for real-time monitoring
+    await this.setupWebhook();
 
-    console.log('Social monitoring started');
+    console.warn('Social monitoring started with webhooks');
   }
 
   async stopMonitoring(): Promise<void> {
-    if (this.monitoringInterval) {
-      clearInterval(this.monitoringInterval);
-      this.monitoringInterval = null;
+    // Clean up webhook
+    if (this.webhookId) {
+      try {
+        await apifyWebhookManager.deleteWebhook(this.webhookId);
+        this.webhookId = null;
+      } catch (error) {
+        console.error('Error deleting webhook:', error);
+      }
     }
+
     this.isMonitoring = false;
-    console.log('Social monitoring stopped');
+    console.warn('Social monitoring stopped');
   }
 
   private async loadActiveAlerts(): Promise<void> {
@@ -88,9 +86,28 @@ export class SocialMonitor {
       }
 
       this.activeAlerts = alertsByAccount;
-      console.log(`Loaded ${alerts?.length || 0} active social alerts`);
+      console.warn(`Loaded ${alerts?.length || 0} active social alerts`);
     } catch (error) {
       console.error('Error loading active alerts:', error);
+    }
+  }
+
+  private async setupWebhook(): Promise<void> {
+    try {
+      const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/webhooks/apify`;
+
+      const webhookConfig = {
+        eventTypes: ['ACTOR.RUN.SUCCEEDED'] as const,
+        requestUrl: webhookUrl,
+        isEnabled: true,
+        condition: 'actorId=="apnow/twitter-user-tweets-scraper"',
+      };
+
+      this.webhookId = await apifyWebhookManager.createWebhook(webhookConfig);
+      console.warn('Webhook created for real-time monitoring:', this.webhookId);
+    } catch (error) {
+      console.error('Failed to setup webhook:', error);
+      throw error;
     }
   }
 
@@ -99,7 +116,7 @@ export class SocialMonitor {
       return;
     }
 
-    console.log(`Checking ${this.activeAlerts.size} accounts for alerts...`);
+    console.warn(`Checking ${this.activeAlerts.size} accounts for alerts...`);
 
     // Get all unique accounts
     const accounts = Array.from(this.activeAlerts.keys());
@@ -133,7 +150,7 @@ export class SocialMonitor {
       return;
     }
 
-    console.log(`Processing ${tweets.length} tweets for @${account}`);
+    console.warn(`Processing ${tweets.length} tweets for @${account}`);
 
     for (const tweet of tweets) {
       for (const alert of alerts) {
@@ -186,7 +203,7 @@ export class SocialMonitor {
         timestamp: Date.now(),
       });
 
-      // Send unified alert (Telegram + WhatsApp)
+      // Send Telegram alert
       await sendUnifiedAlert({
         userId: alert.user_id,
         alertType: 'social',
@@ -198,7 +215,7 @@ export class SocialMonitor {
         },
       });
 
-      console.log(`Alert triggered for ${alert.platform}: "${tweet.text.substring(0, 50)}..."`);
+      console.warn(`Alert triggered for ${alert.platform}: "${tweet.text.substring(0, 50)}..."`);
     } catch (error) {
       console.error('Error triggering alert:', error);
     }

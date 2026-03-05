@@ -1,11 +1,12 @@
-'use server';
+// Apify client service
 
 import { z } from 'zod';
 
 const APIFY_BASE_URL = 'https://api.apify.com/v2';
 const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN;
 
-if (!APIFY_API_TOKEN) {
+// Only throw error in production
+if (!APIFY_API_TOKEN && process.env.NODE_ENV === 'production') {
   throw new Error('APIFY_API_TOKEN environment variable is required');
 }
 

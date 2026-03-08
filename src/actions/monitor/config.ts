@@ -7,8 +7,8 @@ const configSchema = z.object({
     maxRetries: z.number().min(1).default(3),
     backoffMultiplier: z.number().min(1).default(1.5),
     reconnectInterval: z.number().min(1000).default(5000),
-    connectionTimeout: z.number().min(1000).default(3600000),
-    heartbeatInterval: z.number().min(1000).default(30000),
+    connectionTimeout: z.number().min(1000).default(3_600_000),
+    heartbeatInterval: z.number().min(1000).default(30_000),
     maxConnectionsPerUser: z.number().min(1).default(5),
     rateLimitRequests: z.number().min(1).default(100),
     rateLimitWindow: z.number().min(1).default(60),
@@ -17,7 +17,7 @@ const configSchema = z.object({
       .number()
       .min(1)
       .default(1024 * 1024),
-    rateLimitBlockDuration: z.number().min(1).default(300000),
+    rateLimitBlockDuration: z.number().min(1).default(300_000),
     maxConsecutiveFailures: z.number().min(1).default(20),
   }),
   batchSize: z.number().min(1).default(50),
@@ -28,14 +28,14 @@ export const SSE_CONFIG = {
   maxRetries: 3,
   backoffMultiplier: 1.5,
   reconnectInterval: 5000,
-  connectionTimeout: 3600000,
-  heartbeatInterval: 30000,
+  connectionTimeout: 3_600_000,
+  heartbeatInterval: 30_000,
   maxConnectionsPerUser: FEATURES.isDevMode ? 100 : 5,
   rateLimitRequests: 1000,
   rateLimitWindow: 60,
   batchSize: 50,
   maxMessageSize: 1024 * 1024,
-  rateLimitBlockDuration: 300000,
+  rateLimitBlockDuration: 300_000,
   maxConsecutiveFailures: 20,
 } as const;
 

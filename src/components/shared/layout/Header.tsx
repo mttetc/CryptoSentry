@@ -10,6 +10,31 @@ interface HeaderProps {
   children?: React.ReactNode;
 }
 
+function HeaderNav({ user, children }: { user: unknown; children?: React.ReactNode }) {
+  if (FEATURES.isDevMode || user) {
+    return (
+      <Link href="/dashboard">
+        <Button>Go to Dashboard</Button>
+      </Link>
+    );
+  }
+
+  if (FEATURES.isWaitlistMode) {
+    return <>{children}</>;
+  }
+
+  return (
+    <>
+      <Link href="/auth">
+        <Button variant="ghost">Sign In</Button>
+      </Link>
+      <Link href="/auth?register=true">
+        <Button>Get Started</Button>
+      </Link>
+    </>
+  );
+}
+
 export default function Header({ children }: HeaderProps) {
   const { user } = useUser();
 
@@ -19,26 +44,7 @@ export default function Header({ children }: HeaderProps) {
         <Logo />
 
         <nav className="flex items-center gap-4">
-          {FEATURES.isDevMode ? (
-            <Link href="/dashboard">
-              <Button>Go to Dashboard</Button>
-            </Link>
-          ) : FEATURES.isWaitlistMode ? (
-            children
-          ) : user ? (
-            <Link href="/dashboard">
-              <Button>Go to Dashboard</Button>
-            </Link>
-          ) : (
-            <>
-              <Link href="/auth">
-                <Button variant="ghost">Sign In</Button>
-              </Link>
-              <Link href="/auth?register=true">
-                <Button>Get Started</Button>
-              </Link>
-            </>
-          )}
+          <HeaderNav user={user}>{children}</HeaderNav>
         </nav>
       </div>
     </header>

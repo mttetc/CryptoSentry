@@ -1,5 +1,3 @@
-// Social monitor service - Now using webhooks for real-time monitoring
-
 import { apifyClient, type Tweet } from './apify-client';
 import { apifyWebhookManager } from './webhook-manager';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -7,22 +5,163 @@ import { broadcastUpdate } from '@/actions/monitor/lib/realtime';
 import { sendUnifiedAlert } from '@/actions/messaging/unified-notifications';
 import type { SocialAlert } from '@/types/alerts';
 
-interface AlertTrigger {
-  alert_id: string;
-  triggered_at: string;
-  content: string;
-  tweet_url: string;
-  tweet_id: string;
-  author: string;
-  engagement: {
-    likes: number;
-    retweets: number;
-    replies: number;
+// --- Pure functions ---
+
+interface KeywordIndex {
+  keyword: string;
+  alert: SocialAlert;
+}
+
+/**
+ * Build a keyword index: O(m × k) where m=alerts, k=avg keywords per alert.
+ * Eliminates the need for nested tweet × alert loops.
+ */
+function buildKeywordIndex(alerts: SocialAlert[]): KeywordIndex[] {
+  return alerts.flatMap((alert) =>
+    alert.keywords.map((keyword) => ({
+      keyword: keyword.toLowerCase(),
+      alert,
+    }))
+  );
+}
+
+function groupAlertsByAccount(alerts: SocialAlert[]): Map<string, SocialAlert[]> {
+  const grouped = new Map<string, SocialAlert[]>();
+
+  for (const alert of alerts) {
+    const account = alert.platform === 'twitter' ? 'twitter' : alert.platform;
+    const existing = grouped.get(account) || [];
+    existing.push(alert);
+    grouped.set(account, existing);
+  }
+
+  return grouped;
+}
+
+function buildEngagement(tweet: Tweet) {
+  return {
+    likes: tweet.likesCount || 0,
+    retweets: tweet.retweetsCount || 0,
+    replies: tweet.repliesCount || 0,
   };
 }
 
+function buildTriggerData(alert: SocialAlert, tweet: Tweet) {
+  return {
+    alert_id: alert.id,
+    triggered_at: new Date().toISOString(),
+    content: tweet.text,
+    tweet_url: tweet.url,
+    tweet_id: tweet.id,
+    author: tweet.author.userName,
+    engagement: buildEngagement(tweet),
+  };
+}
+
+function buildBroadcastData(alert: SocialAlert, tweet: Tweet): Record<string, unknown> {
+  return {
+    platform: alert.platform,
+    account: alert.platform,
+    content: tweet.text,
+    keywords: alert.keywords,
+    tweet_url: tweet.url,
+    author: tweet.author.userName,
+    engagement: buildEngagement(tweet),
+    timestamp: Date.now(),
+  };
+}
+
+function buildNotification(alert: SocialAlert, tweet: Tweet) {
+  return {
+    userId: alert.user_id,
+    alertType: 'social' as const,
+    message: `Social Alert: ${alert.platform} mentioned your keywords`,
+    data: {
+      account: alert.platform,
+      keywords: alert.keywords,
+      tweet_url: tweet.url,
+    },
+  };
+}
+
+/**
+ * O(n × k) instead of O(n × m × k):
+ * - Build keyword index once: O(m × k)
+ * - For each tweet: lowercase once, scan keywords: O(k total unique)
+ * - Use Set to deduplicate alert matches per tweet
+ */
+function findMatchingPairs(
+  alerts: SocialAlert[],
+  tweets: Tweet[]
+): { alert: SocialAlert; tweet: Tweet }[] {
+  const index = buildKeywordIndex(alerts);
+  const matches: { alert: SocialAlert; tweet: Tweet }[] = [];
+
+  for (const tweet of tweets) {
+    const lowerText = tweet.text.toLowerCase();
+    const matchedAlertIds = new Set<string>();
+
+    for (const { keyword, alert } of index) {
+      if (matchedAlertIds.has(alert.id)) {
+        continue;
+      }
+
+      if (lowerText.includes(keyword)) {
+        matchedAlertIds.add(alert.id);
+        matches.push({ alert, tweet });
+      }
+    }
+  }
+
+  return matches;
+}
+
+// --- Single-responsibility I/O ---
+
+async function fetchActiveAlertsFromDB(): Promise<SocialAlert[]> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from('social_alerts')
+    .select('*')
+    .eq('active', true);
+
+  if (error) {
+    console.error('Error loading active alerts:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+async function persistTrigger(data: Record<string, unknown>): Promise<boolean> {
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.from('alert_triggers').insert(data);
+
+  if (error) {
+    console.error('Error recording alert trigger:', error);
+    return false;
+  }
+
+  return true;
+}
+
+async function triggerSingleAlert(alert: SocialAlert, tweet: Tweet): Promise<void> {
+  const triggerData = buildTriggerData(alert, tweet);
+  const broadcastData = buildBroadcastData(alert, tweet);
+  const notification = buildNotification(alert, tweet);
+
+  // All three operations are independent — run in parallel
+  await Promise.allSettled([
+    persistTrigger(triggerData),
+    broadcastUpdate('social', broadcastData),
+    sendUnifiedAlert(notification),
+  ]);
+}
+
+// --- Class (stateful orchestrator) ---
+
 export class SocialMonitor {
-  private activeAlerts: Map<string, SocialAlert[]> = new Map();
+  private activeAlerts = new Map<string, SocialAlert[]>();
   private webhookId: string | null = null;
   private isMonitoring = false;
 
@@ -35,17 +174,16 @@ export class SocialMonitor {
     console.warn('Starting social monitoring with webhooks...');
     this.isMonitoring = true;
 
-    // Load active alerts
-    await this.loadActiveAlerts();
-
-    // Create webhook for real-time monitoring
-    await this.setupWebhook();
+    // These are independent — run in parallel
+    await Promise.all([
+      this.loadActiveAlerts(),
+      this.setupWebhook(),
+    ]);
 
     console.warn('Social monitoring started with webhooks');
   }
 
   async stopMonitoring(): Promise<void> {
-    // Clean up webhook
     if (this.webhookId) {
       try {
         await apifyWebhookManager.deleteWebhook(this.webhookId);
@@ -60,50 +198,21 @@ export class SocialMonitor {
   }
 
   private async loadActiveAlerts(): Promise<void> {
-    try {
-      const supabase = await createServerSupabaseClient();
-
-      const { data: alerts, error } = await supabase
-        .from('social_alerts')
-        .select('*')
-        .eq('active', true);
-
-      if (error) {
-        console.error('Error loading active alerts:', error);
-        return;
-      }
-
-      // Group alerts by account for batch processing
-      const alertsByAccount = new Map<string, SocialAlert[]>();
-
-      for (const alert of alerts || []) {
-        const account = alert.platform === 'twitter' ? 'twitter' : alert.platform;
-
-        if (!alertsByAccount.has(account)) {
-          alertsByAccount.set(account, []);
-        }
-        alertsByAccount.get(account)!.push(alert);
-      }
-
-      this.activeAlerts = alertsByAccount;
-      console.warn(`Loaded ${alerts?.length || 0} active social alerts`);
-    } catch (error) {
-      console.error('Error loading active alerts:', error);
-    }
+    const alerts = await fetchActiveAlertsFromDB();
+    this.activeAlerts = groupAlertsByAccount(alerts);
+    console.warn(`Loaded ${alerts.length} active social alerts`);
   }
 
   private async setupWebhook(): Promise<void> {
     try {
       const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/webhooks/apify`;
 
-      const webhookConfig = {
+      this.webhookId = await apifyWebhookManager.createWebhook({
         eventTypes: ['ACTOR.RUN.SUCCEEDED'] as const,
         requestUrl: webhookUrl,
         isEnabled: true,
         condition: 'actorId=="apnow/twitter-user-tweets-scraper"',
-      };
-
-      this.webhookId = await apifyWebhookManager.createWebhook(webhookConfig);
+      });
       console.warn('Webhook created for real-time monitoring:', this.webhookId);
     } catch (error) {
       console.error('Failed to setup webhook:', error);
@@ -118,28 +227,29 @@ export class SocialMonitor {
 
     console.warn(`Checking ${this.activeAlerts.size} accounts for alerts...`);
 
-    // Get all unique accounts
-    const accounts = Array.from(this.activeAlerts.keys());
-
-    // Process in batches to avoid overwhelming Apify
+    const accounts = [...this.activeAlerts.keys()];
     const batchSize = 5;
+
     for (let i = 0; i < accounts.length; i += batchSize) {
       const batch = accounts.slice(i, i + batchSize);
 
       try {
-        // Use batch processing for cost optimization
         const results = await apifyClient.runBatchTwitterUserTweetsScraper(batch);
 
-        for (const [account, tweets] of results) {
-          await this.processTweetsForAccount(account, tweets);
-        }
+        // Process all accounts in this batch in parallel
+        await Promise.allSettled(
+          [...results.entries()].map(([account, tweets]) =>
+            this.processTweetsForAccount(account, tweets)
+          )
+        );
       } catch (error) {
         console.error(`Error processing batch for accounts ${batch.join(', ')}:`, error);
       }
 
-      // Small delay between batches to be respectful to Apify
       if (i + batchSize < accounts.length) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => {
+          setTimeout(resolve, 1000);
+        });
       }
     }
   }
@@ -150,85 +260,21 @@ export class SocialMonitor {
       return;
     }
 
-    console.warn(`Processing ${tweets.length} tweets for @${account}`);
+    // Pure: find all matches
+    const matches = findMatchingPairs(alerts, tweets);
 
-    for (const tweet of tweets) {
-      for (const alert of alerts) {
-        const hasMatchingKeywords = alert.keywords.some((keyword) =>
-          tweet.text.toLowerCase().includes(keyword.toLowerCase())
-        );
-
-        if (hasMatchingKeywords) {
-          await this.triggerAlert(alert, tweet);
-        }
-      }
-    }
+    // I/O: trigger all matches in parallel
+    await Promise.allSettled(
+      matches.map(({ alert, tweet }) => triggerSingleAlert(alert, tweet))
+    );
   }
 
-  private async triggerAlert(alert: SocialAlert, tweet: Tweet): Promise<void> {
-    try {
-      const supabase = await createServerSupabaseClient();
-
-      // Record the trigger
-      const triggerData: AlertTrigger = {
-        alert_id: alert.id,
-        triggered_at: new Date().toISOString(),
-        content: tweet.text,
-        tweet_url: tweet.url,
-        tweet_id: tweet.id,
-        author: tweet.author.userName,
-        engagement: {
-          likes: tweet.likesCount || 0,
-          retweets: tweet.retweetsCount || 0,
-          replies: tweet.repliesCount || 0,
-        },
-      };
-
-      const { error: triggerError } = await supabase.from('alert_triggers').insert(triggerData);
-
-      if (triggerError) {
-        console.error('Error recording alert trigger:', triggerError);
-        return;
-      }
-
-      // Send SSE event to connected clients
-      await broadcastUpdate('social', {
-        platform: alert.platform,
-        account: alert.platform,
-        content: tweet.text,
-        keywords: alert.keywords,
-        tweet_url: tweet.url,
-        author: tweet.author.userName,
-        engagement: triggerData.engagement,
-        timestamp: Date.now(),
-      });
-
-      // Send Telegram alert
-      await sendUnifiedAlert({
-        userId: alert.user_id,
-        alertType: 'social',
-        message: `Social Alert: ${alert.platform} mentioned your keywords`,
-        data: {
-          account: alert.platform,
-          keywords: alert.keywords,
-          tweet_url: tweet.url,
-        },
-      });
-
-      console.warn(`Alert triggered for ${alert.platform}: "${tweet.text.substring(0, 50)}..."`);
-    } catch (error) {
-      console.error('Error triggering alert:', error);
-    }
-  }
-
-  // Method to manually refresh alerts (useful when new alerts are added)
   async refreshAlerts(): Promise<void> {
     await this.loadActiveAlerts();
   }
 
-  // Get monitoring status
   getStatus(): { isMonitoring: boolean; activeAccounts: number; totalAlerts: number } {
-    const totalAlerts = Array.from(this.activeAlerts.values()).reduce(
+    const totalAlerts = [...this.activeAlerts.values()].reduce(
       (sum, alerts) => sum + alerts.length,
       0
     );
@@ -241,5 +287,4 @@ export class SocialMonitor {
   }
 }
 
-// Singleton instance
 export const socialMonitor = new SocialMonitor();

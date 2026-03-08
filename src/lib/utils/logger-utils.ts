@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export const LOG_DIR = path.join(process.cwd(), 'logs');
 export const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB
@@ -12,10 +12,10 @@ if (!fs.existsSync(LOG_DIR)) {
 
 // Rotate logs if needed
 export function rotateLogFile(logPath: string) {
-  if (!fs.existsSync(logPath)) return;
+  if (!fs.existsSync(logPath)) { return; }
 
   const stats = fs.statSync(logPath);
-  if (stats.size < MAX_LOG_SIZE) return;
+  if (stats.size < MAX_LOG_SIZE) { return; }
 
   // Rotate existing log files
   for (let i = MAX_LOG_FILES - 1; i > 0; i--) {

@@ -6,8 +6,8 @@ const sseConfigSchema = z.object({
   maxRetries: z.number().min(1).default(3),
   backoffMultiplier: z.number().min(1).default(1.5),
   reconnectInterval: z.number().min(1000).default(5000), // Base interval for reconnection backoff
-  connectionTimeout: z.number().min(1000).default(3600000), // 1 hour default
-  heartbeatInterval: z.number().min(1000).default(30000), // 30 seconds default
+  connectionTimeout: z.number().min(1000).default(3_600_000), // 1 hour default
+  heartbeatInterval: z.number().min(1000).default(30_000), // 30 seconds default
   maxConnectionsPerUser: z.number().min(1).default(5), // Max concurrent connections per user
   rateLimitRequests: z.number().min(1).default(100), // Number of requests allowed
   rateLimitWindow: z.number().min(1).default(60), // Time window in seconds
@@ -16,7 +16,7 @@ const sseConfigSchema = z.object({
     .number()
     .min(1)
     .default(1024 * 1024), // 1MB
-  rateLimitBlockDuration: z.number().min(1).default(300000), // 5 minutes
+  rateLimitBlockDuration: z.number().min(1).default(300_000), // 5 minutes
   maxConsecutiveFailures: z.number().min(1).default(20),
 });
 

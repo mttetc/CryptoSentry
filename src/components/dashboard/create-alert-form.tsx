@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Twitter, Plus, X, Hash, MessageSquare, CheckCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { createSocialAlert } from '@/actions/alerts';
 
 const alertSchema = z.object({
   account: z.string().min(1, 'Account is required').max(50, 'Account name too long'),
@@ -27,7 +28,7 @@ interface CreateAlertFormProps {
   userId: string;
 }
 
-export function CreateAlertForm({ userId }: CreateAlertFormProps) {
+export function CreateAlertForm({ userId: _userId }: CreateAlertFormProps) {
   const [keywords, setKeywords] = useState<string[]>([]);
   const [newKeyword, setNewKeyword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -65,19 +66,14 @@ export function CreateAlertForm({ userId }: CreateAlertFormProps) {
   const onSubmit = async (data: AlertFormData) => {
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/alerts/social', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...data,
-          userId,
-          platform: 'twitter',
-        }),
+      const result = await createSocialAlert({
+        account: data.account,
+        keywords: data.keywords,
+        platform: 'twitter',
+        telegramConversationId: data.telegramConversationId,
       });
 
-      if (response.ok) {
+      if (result.success) {
         toast({
           title: 'Alert Created!',
           description: `Now monitoring @${data.account} for your keywords`,
@@ -85,7 +81,11 @@ export function CreateAlertForm({ userId }: CreateAlertFormProps) {
         reset();
         setKeywords([]);
       } else {
-        throw new Error('Failed to create alert');
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: result.error || 'Failed to create alert.',
+        });
       }
     } catch {
       toast({

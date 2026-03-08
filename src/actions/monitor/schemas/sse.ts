@@ -47,7 +47,7 @@ export const errorEventSchema = z.object({
   data: baseEventData.extend({
     code: z.string().optional(),
     message: z.string(),
-    details: z.record(z.any()).optional(),
+    details: z.record(z.string(), z.unknown()).optional(),
   }),
 });
 

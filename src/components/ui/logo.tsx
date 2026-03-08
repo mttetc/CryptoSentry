@@ -2,32 +2,57 @@ import Link from 'next/link';
 
 interface LogoProps {
   className?: string;
+  size?: number;
 }
 
-export function Logo({ className = '' }: LogoProps) {
+function LogoMark({ size = 20 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M16 3L5 8.5V15C5 21.5 9.8 27.2 16 29C22.2 27.2 27 21.5 27 15V8.5L16 3Z"
+        fill="#22C55E"
+        fillOpacity="0.15"
+        stroke="#22C55E"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <circle cx="16" cy="15" r="2.5" fill="#22C55E" />
+      <path
+        d="M12.5 11.5C13.4 10.6 14.6 10 16 10C17.4 10 18.6 10.6 19.5 11.5"
+        stroke="#22C55E"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10 9C11.6 7.4 13.7 6.5 16 6.5C18.3 6.5 20.4 7.4 22 9"
+        stroke="#22C55E"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10 20H13L14.5 17L16 22L17.5 19L19 20H22"
+        stroke="#22C55E"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export { LogoMark };
+
+export function Logo({ className = '', size = 20 }: LogoProps) {
   return (
     <Link href="/" className={`flex items-center gap-2 ${className}`}>
-      <svg
-        width="32"
-        height="32"
-        viewBox="0 0 32 32"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        {/* Shield outline */}
-        <path
-          d="M16 2L4 8V16C4 22.6274 9.37258 28 16 28C22.6274 28 28 22.6274 28 16V8L16 2Z"
-          stroke="#3B82F6"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-
-        {/* Crypto symbol */}
-        <path d="M16 8L12 12L16 16L20 12L16 8Z" fill="#3B82F6" />
-        <path d="M16 16L12 20L16 24L20 20L16 16Z" fill="#3B82F6" />
-      </svg>
-      <span className="font-display text-xl font-semibold tracking-tight">CryptoSentry</span>
+      <LogoMark size={size} />
+      <span className="text-sm font-semibold tracking-tight text-white">CryptoSentry</span>
     </Link>
   );
 }

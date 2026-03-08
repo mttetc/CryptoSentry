@@ -2,9 +2,7 @@
 // Manages webhook subscriptions for real-time monitoring
 
 import { z } from 'zod';
-
-const APIFY_BASE_URL = 'https://api.apify.com/v2';
-const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN;
+import { requireApifyToken, APIFY_BASE_URL } from './config';
 
 // Webhook configuration schema
 const webhookConfigSchema = z.object({
@@ -23,17 +21,14 @@ export class ApifyWebhookManager {
   private webhookId: string | null = null;
 
   async createWebhook(config: WebhookConfig): Promise<string> {
-    if (!APIFY_API_TOKEN) {
-      throw new Error('APIFY_API_TOKEN not configured');
-    }
-
+    const token = requireApifyToken();
     const webhookData = webhookConfigSchema.parse(config);
 
     const response = await fetch(`${APIFY_BASE_URL}/webhooks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${APIFY_API_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(webhookData),
     });
@@ -47,19 +42,17 @@ export class ApifyWebhookManager {
     this.webhookId = result.data.id;
 
     console.warn('Apify webhook created:', this.webhookId);
-    return this.webhookId!;
+    return this.webhookId ?? '';
   }
 
   async updateWebhook(webhookId: string, config: Partial<WebhookConfig>): Promise<void> {
-    if (!APIFY_API_TOKEN) {
-      throw new Error('APIFY_API_TOKEN not configured');
-    }
+    const token = requireApifyToken();
 
     const response = await fetch(`${APIFY_BASE_URL}/webhooks/${webhookId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${APIFY_API_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(config),
     });
@@ -73,14 +66,12 @@ export class ApifyWebhookManager {
   }
 
   async deleteWebhook(webhookId: string): Promise<void> {
-    if (!APIFY_API_TOKEN) {
-      throw new Error('APIFY_API_TOKEN not configured');
-    }
+    const token = requireApifyToken();
 
     const response = await fetch(`${APIFY_BASE_URL}/webhooks/${webhookId}`, {
       method: 'DELETE',
       headers: {
-        Authorization: `Bearer ${APIFY_API_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -93,14 +84,12 @@ export class ApifyWebhookManager {
     this.webhookId = null;
   }
 
-  async listWebhooks(): Promise<any[]> {
-    if (!APIFY_API_TOKEN) {
-      throw new Error('APIFY_API_TOKEN not configured');
-    }
+  async listWebhooks(): Promise<Record<string, unknown>[]> {
+    const token = requireApifyToken();
 
     const response = await fetch(`${APIFY_BASE_URL}/webhooks`, {
       headers: {
-        Authorization: `Bearer ${APIFY_API_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -113,14 +102,12 @@ export class ApifyWebhookManager {
     return result.data.items;
   }
 
-  async getWebhook(webhookId: string): Promise<any> {
-    if (!APIFY_API_TOKEN) {
-      throw new Error('APIFY_API_TOKEN not configured');
-    }
+  async getWebhook(webhookId: string): Promise<Record<string, unknown>> {
+    const token = requireApifyToken();
 
     const response = await fetch(`${APIFY_BASE_URL}/webhooks/${webhookId}`, {
       headers: {
-        Authorization: `Bearer ${APIFY_API_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 

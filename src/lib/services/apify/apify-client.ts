@@ -1,14 +1,7 @@
 // Apify client service
 
 import { z } from 'zod';
-
-const APIFY_BASE_URL = 'https://api.apify.com/v2';
-const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN;
-
-// Only throw error in production
-if (!APIFY_API_TOKEN && process.env.NODE_ENV === 'production') {
-  throw new Error('APIFY_API_TOKEN environment variable is required');
-}
+import { requireApifyToken, APIFY_BASE_URL } from './config';
 
 // Twitter User Tweets Scraper Actor ID
 const TWITTER_USER_TWEETS_ACTOR_ID = 'apnow/twitter-user-tweets-scraper';
@@ -33,22 +26,21 @@ const tweetSchema = z.object({
 
 export type Tweet = z.infer<typeof tweetSchema>;
 
-interface ApifyRun {
-  id: string;
-  status: string;
-  defaultDatasetId: string;
-}
-
-interface ApifyDataset {
-  items: Tweet[];
+interface ApifyRunResponse {
+  data: {
+    id: string;
+    status: string;
+    defaultDatasetId: string;
+  };
 }
 
 export class ApifyClient {
-  private async makeRequest(endpoint: string, options: RequestInit = {}) {
+  private async makeRequest<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const token = requireApifyToken();
     const response = await fetch(`${APIFY_BASE_URL}${endpoint}`, {
       ...options,
       headers: {
-        Authorization: `Bearer ${APIFY_API_TOKEN}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
         ...options.headers,
       },
@@ -58,7 +50,7 @@ export class ApifyClient {
       throw new Error(`Apify API error: ${response.status} ${response.statusText}`);
     }
 
-    return response.json();
+    return response.json() as Promise<T>;
   }
 
   async runTwitterUserTweetsScraper(username: string): Promise<Tweet[]> {
@@ -70,7 +62,7 @@ export class ApifyClient {
 
     try {
       // Start the actor run
-      const runResponse = await this.makeRequest(`/acts/${TWITTER_USER_TWEETS_ACTOR_ID}/runs`, {
+      const { data: run } = await this.makeRequest<ApifyRunResponse>(`/acts/${TWITTER_USER_TWEETS_ACTOR_ID}/runs`, {
         method: 'POST',
         body: JSON.stringify({
           input: {
@@ -82,34 +74,31 @@ export class ApifyClient {
         }),
       });
 
-      const run: ApifyRun = runResponse.data;
-
       // Wait for the run to complete (with timeout)
-      const maxWaitTime = 60000; // 1 minute
+      const maxWaitTime = 60_000; // 1 minute
       const startTime = Date.now();
 
       while (Date.now() - startTime < maxWaitTime) {
-        const statusResponse = await this.makeRequest(
+        const { data: status } = await this.makeRequest<ApifyRunResponse>(
           `/acts/${TWITTER_USER_TWEETS_ACTOR_ID}/runs/${run.id}`
         );
 
-        if (statusResponse.data.status === 'SUCCEEDED') {
+        if (status.status === 'SUCCEEDED') {
           break;
-        } else if (statusResponse.data.status === 'FAILED') {
+        } else if (status.status === 'FAILED') {
           throw new Error('Apify run failed');
         }
 
         // Wait 2 seconds before checking again
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => { setTimeout(resolve, 2000); });
       }
 
       // Get the dataset
-      const datasetResponse = await this.makeRequest(`/datasets/${run.defaultDatasetId}/items`);
-      const dataset: ApifyDataset = datasetResponse;
+      const datasetItems = await this.makeRequest<unknown[]>(`/datasets/${run.defaultDatasetId}/items`);
 
       // Parse and validate tweets
       const tweets: Tweet[] = [];
-      for (const item of dataset.items) {
+      for (const item of datasetItems) {
         try {
           const tweet = tweetSchema.parse(item);
           tweets.push(tweet);
@@ -136,7 +125,7 @@ export class ApifyClient {
     const results = new Map<string, Tweet[]>();
 
     try {
-      const runResponse = await this.makeRequest(`/acts/${TWITTER_USER_TWEETS_ACTOR_ID}/runs`, {
+      const { data: run } = await this.makeRequest<ApifyRunResponse>(`/acts/${TWITTER_USER_TWEETS_ACTOR_ID}/runs`, {
         method: 'POST',
         body: JSON.stringify({
           input: {
@@ -148,32 +137,29 @@ export class ApifyClient {
         }),
       });
 
-      const run: ApifyRun = runResponse.data;
-
       // Wait for completion
-      const maxWaitTime = 120000; // 2 minutes for batch
+      const maxWaitTime = 120_000; // 2 minutes for batch
       const startTime = Date.now();
 
       while (Date.now() - startTime < maxWaitTime) {
-        const statusResponse = await this.makeRequest(
+        const { data: status } = await this.makeRequest<ApifyRunResponse>(
           `/acts/${TWITTER_USER_TWEETS_ACTOR_ID}/runs/${run.id}`
         );
 
-        if (statusResponse.data.status === 'SUCCEEDED') {
+        if (status.status === 'SUCCEEDED') {
           break;
-        } else if (statusResponse.data.status === 'FAILED') {
+        } else if (status.status === 'FAILED') {
           throw new Error('Apify batch run failed');
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await new Promise((resolve) => { setTimeout(resolve, 3000); });
       }
 
       // Get the dataset
-      const datasetResponse = await this.makeRequest(`/datasets/${run.defaultDatasetId}/items`);
-      const dataset: ApifyDataset = datasetResponse;
+      const datasetItems = await this.makeRequest<unknown[]>(`/datasets/${run.defaultDatasetId}/items`);
 
       // Group tweets by username
-      for (const item of dataset.items) {
+      for (const item of datasetItems) {
         try {
           const tweet = tweetSchema.parse(item);
           const username = tweet.author.userName;
@@ -181,7 +167,7 @@ export class ApifyClient {
           if (!results.has(username)) {
             results.set(username, []);
           }
-          results.get(username)!.push(tweet);
+          results.get(username)?.push(tweet);
         } catch (error) {
           console.error('Error parsing tweet in batch:', error);
         }
@@ -211,7 +197,7 @@ export class ApifyClient {
   getCacheStats(): { size: number; entries: string[] } {
     return {
       size: tweetCache.size,
-      entries: Array.from(tweetCache.keys()),
+      entries: [...tweetCache.keys()],
     };
   }
 }

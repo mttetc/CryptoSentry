@@ -1,12 +1,12 @@
 'use server';
 
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { LOG_DIR, rotateLogFile } from './logger-utils';
 
 // Log to file and database if critical
-export async function log(level: 'info' | 'warn' | 'error', message: string, data?: any) {
+export async function log(level: 'info' | 'warn' | 'error', message: string, data?: Record<string, unknown>) {
   const timestamp = new Date().toISOString();
   const logPath = path.join(LOG_DIR, `${level}.log`);
 
@@ -14,13 +14,12 @@ export async function log(level: 'info' | 'warn' | 'error', message: string, dat
   rotateLogFile(logPath);
 
   // Format log entry
-  const logEntry =
-    JSON.stringify({
+  const logEntry = `${JSON.stringify({
       timestamp,
       level,
       message,
       data,
-    }) + '\n';
+    })}\n`;
 
   // Write to file
   fs.appendFileSync(logPath, logEntry);
@@ -46,14 +45,14 @@ export async function log(level: 'info' | 'warn' | 'error', message: string, dat
 }
 
 // Async wrapper functions
-export async function logInfo(message: string, data?: any) {
+export async function logInfo(message: string, data?: Record<string, unknown>) {
   return log('info', message, data);
 }
 
-export async function logWarn(message: string, data?: any) {
+export async function logWarn(message: string, data?: Record<string, unknown>) {
   return log('warn', message, data);
 }
 
-export async function logError(message: string, data?: any) {
+export async function logError(message: string, data?: Record<string, unknown>) {
   return log('error', message, data);
 }

@@ -1,26 +1,17 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import type { NotificationPreferences, UserState } from '../types/index';
-import { notificationPreferencesSchema } from '../types/index';
+import { requireAuth } from '@/lib/api/auth';
+import { type NotificationPreferences, type UserState, notificationPreferencesSchema } from '../types/index';
 
 export async function updateUserPreferences(
   preferences: NotificationPreferences
 ): Promise<UserState> {
   try {
     const validatedPrefs = notificationPreferencesSchema.parse(preferences);
-
-    const supabase = await createServerSupabaseClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.user.id) {
-      throw new Error('Unauthorized');
-    }
+    const { supabase, userId } = await requireAuth();
 
     const { error } = await supabase.from('user_notification_settings').upsert({
-      user_id: session.user.id,
+      user_id: userId,
       phone: validatedPrefs.phone,
       prefer_sms: validatedPrefs.prefer_sms,
       active_24h: validatedPrefs.active_24h,
@@ -33,7 +24,9 @@ export async function updateUserPreferences(
       updated_at: new Date().toISOString(),
     });
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     return { success: true };
   } catch (error) {
@@ -47,21 +40,14 @@ export async function updateUserPreferences(
 
 export async function getUserPreferences(): Promise<NotificationPreferences | null> {
   try {
-    const supabase = await createServerSupabaseClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.user.id) {
-      return null;
-    }
+    const { supabase, userId } = await requireAuth();
 
     const { data, error } = await supabase
       .from('user_notification_settings')
       .select(
         'phone, prefer_sms, active_24h, quiet_hours_start, quiet_hours_end, weekends_enabled, telegram_enabled, telegram_chat_id, telegram_setup_in_progress'
       )
-      .eq('user_id', session.user.id)
+      .eq('user_id', userId)
       .single();
 
     if (error) {

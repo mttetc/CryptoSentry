@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { broadcastUpdate } from '@/actions/monitor/lib/realtime';
 import { sendUnifiedAlert } from '@/actions/messaging/unified-notifications';
+import { requireApifyToken } from '@/lib/services/apify/config';
 import { z } from 'zod';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
-// Apify webhook payload schema
 const apifyWebhookSchema = z.object({
   eventType: z.enum(['ACTOR.RUN.SUCCEEDED', 'ACTOR.RUN.FAILED', 'ACTOR.RUN.TIMED_OUT']),
   eventData: z.object({
@@ -33,181 +34,253 @@ const apifyWebhookSchema = z.object({
   createdAt: z.string(),
 });
 
-export async function POST(request: NextRequest) {
-  try {
-    // Verify webhook signature (optional but recommended)
-    const signature = request.headers.get('x-apify-signature');
-    if (!signature) {
-      console.warn('Apify webhook received without signature');
-    }
-
-    // Parse and validate the webhook payload
-    const body = await request.json();
-    const webhookData = apifyWebhookSchema.parse(body);
-
-    console.warn('Apify webhook received:', {
-      eventType: webhookData.eventType,
-      actorId: webhookData.eventData.actorId,
-      status: webhookData.eventData.status,
-    });
-
-    // Only process successful runs
-    if (webhookData.eventData.status !== 'SUCCEEDED') {
-      return NextResponse.json({
-        success: true,
-        message: 'Webhook received but run not successful',
-      });
-    }
-
-    // Get the output dataset to fetch new tweets
-    const outputDatasetId = webhookData.eventData.stats?.outputDatasetId;
-    if (!outputDatasetId) {
-      return NextResponse.json({
-        success: true,
-        message: 'No output dataset found',
-      });
-    }
-
-    // Fetch new tweets from Apify dataset
-    const tweets = await fetchTweetsFromDataset(outputDatasetId);
-
-    if (tweets.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'No new tweets found',
-      });
-    }
-
-    // Process tweets and trigger alerts
-    await processTweetsAndTriggerAlerts(tweets);
-
-    return NextResponse.json({
-      success: true,
-      message: `Processed ${tweets.length} tweets`,
-    });
-  } catch (error) {
-    console.error('Error processing Apify webhook:', error);
-    return NextResponse.json({ error: 'Failed to process webhook' }, { status: 500 });
-  }
+interface ApifyTweet {
+  text: string;
+  url?: string;
+  author?: {
+    userName?: string;
+  };
+  likesCount?: number;
+  retweetsCount?: number;
+  repliesCount?: number;
 }
 
-async function fetchTweetsFromDataset(datasetId: string) {
-  const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN;
-  if (!APIFY_API_TOKEN) {
-    throw new Error('APIFY_API_TOKEN not configured');
+interface SocialAlertRecord {
+  id: string;
+  user_id: string;
+  platform: string;
+  account: string;
+  keywords: string[];
+  is_active: boolean;
+}
+
+// --- Pure functions ---
+
+interface KeywordEntry {
+  keyword: string;
+  alert: SocialAlertRecord;
+}
+
+/**
+ * Build a keyword→alerts index per account.
+ * O(m × k) where m=alerts, k=avg keywords per alert.
+ */
+function buildAccountKeywordIndex(
+  alerts: SocialAlertRecord[]
+): Map<string, KeywordEntry[]> {
+  const index = new Map<string, KeywordEntry[]>();
+
+  for (const alert of alerts) {
+    const account = alert.platform.toLowerCase();
+    const entries = index.get(account) || [];
+
+    for (const keyword of alert.keywords) {
+      entries.push({ keyword: keyword.toLowerCase(), alert });
+    }
+
+    index.set(account, entries);
   }
 
-  const response = await fetch(
-    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_TOKEN}`,
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+  return index;
+}
+
+function buildEngagement(tweet: ApifyTweet) {
+  return {
+    likes: tweet.likesCount || 0,
+    retweets: tweet.retweetsCount || 0,
+    replies: tweet.repliesCount || 0,
+  };
+}
+
+function buildTriggerData(alert: SocialAlertRecord, tweet: ApifyTweet): Record<string, unknown> {
+  return {
+    alert_id: alert.id,
+    user_id: alert.user_id,
+    type: 'social',
+    data: {
+      platform: alert.platform,
+      content: tweet.text,
+      keywords: alert.keywords,
+      tweet_url: tweet.url,
+      author: tweet.author?.userName,
+      engagement: buildEngagement(tweet),
+    },
+  };
+}
+
+function buildBroadcastData(alert: SocialAlertRecord, tweet: ApifyTweet): Record<string, unknown> {
+  return {
+    platform: alert.platform,
+    account: alert.platform,
+    content: tweet.text,
+    keywords: alert.keywords,
+    tweet_url: tweet.url,
+    author: tweet.author?.userName,
+    engagement: buildEngagement(tweet),
+    timestamp: Date.now(),
+  };
+}
+
+function buildNotification(alert: SocialAlertRecord, tweet: ApifyTweet) {
+  return {
+    userId: alert.user_id,
+    alertType: 'social' as const,
+    message: `Social Alert: @${alert.platform} mentioned your keywords`,
+    data: {
+      account: alert.platform,
+      keywords: alert.keywords,
+      tweet_url: tweet.url,
+      content: tweet.text.slice(0, 100),
+    },
+  };
+}
+
+/**
+ * O(n × k) with account-level Map lookup + keyword index.
+ * No nested alert loop — keyword entries are pre-flattened.
+ * Deduplicates alert matches per tweet via Set.
+ */
+function findMatchingPairs(
+  tweets: ApifyTweet[],
+  accountKeywordIndex: Map<string, KeywordEntry[]>
+): { alert: SocialAlertRecord; tweet: ApifyTweet }[] {
+  const matches: { alert: SocialAlertRecord; tweet: ApifyTweet }[] = [];
+
+  for (const tweet of tweets) {
+    const account = tweet.author?.userName?.toLowerCase();
+    if (!account) {
+      continue;
     }
+
+    const entries = accountKeywordIndex.get(account);
+    if (!entries) {
+      continue;
+    }
+
+    const lowerText = tweet.text.toLowerCase();
+    const matchedAlertIds = new Set<string>();
+
+    for (const { keyword, alert } of entries) {
+      if (matchedAlertIds.has(alert.id)) {
+        continue;
+      }
+
+      if (lowerText.includes(keyword)) {
+        matchedAlertIds.add(alert.id);
+        matches.push({ alert, tweet });
+      }
+    }
+  }
+
+  return matches;
+}
+
+// --- Single-responsibility I/O ---
+
+async function fetchTweetsFromDataset(datasetId: string): Promise<ApifyTweet[]> {
+  const token = requireApifyToken();
+
+  const response = await fetch(
+    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}`,
+    { headers: { 'Content-Type': 'application/json' } }
   );
 
   if (!response.ok) {
     throw new Error(`Failed to fetch dataset: ${response.statusText}`);
   }
 
-  return await response.json();
+  return response.json();
 }
 
-async function processTweetsAndTriggerAlerts(tweets: any[]) {
+async function fetchActiveAlerts(): Promise<SocialAlertRecord[]> {
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase
+    .from('social_alerts')
+    .select('id, user_id, platform, account, keywords, is_active')
+    .eq('is_active', true);
+  return data ?? [];
+}
+
+async function triggerSingleAlert(alert: SocialAlertRecord, tweet: ApifyTweet): Promise<void> {
   const supabase = await createServerSupabaseClient();
 
-  // Get all active social alerts
-  const { data: alerts } = await supabase.from('social_alerts').select('*').eq('is_active', true);
-
-  if (!alerts || alerts.length === 0) {
-    return;
-  }
-
-  // Group alerts by account
-  const alertsByAccount = new Map<string, any[]>();
-  for (const alert of alerts) {
-    const account = alert.platform.toLowerCase();
-    if (!alertsByAccount.has(account)) {
-      alertsByAccount.set(account, []);
-    }
-    alertsByAccount.get(account)!.push(alert);
-  }
-
-  // Process each tweet
-  for (const tweet of tweets) {
-    const account = tweet.author?.userName?.toLowerCase();
-    if (!account || !alertsByAccount.has(account)) {
-      continue;
-    }
-
-    const accountAlerts = alertsByAccount.get(account)!;
-
-    for (const alert of accountAlerts) {
-      const hasMatchingKeywords = alert.keywords.some((keyword: string) =>
-        tweet.text.toLowerCase().includes(keyword.toLowerCase())
-      );
-
-      if (hasMatchingKeywords) {
-        await triggerAlert(alert, tweet);
-      }
-    }
-  }
+  // All three operations are independent — run in parallel
+  await Promise.allSettled([
+    supabase.from('alert_triggers').insert(buildTriggerData(alert, tweet)),
+    broadcastUpdate('social', buildBroadcastData(alert, tweet)),
+    sendUnifiedAlert(buildNotification(alert, tweet)),
+  ]);
 }
 
-async function triggerAlert(alert: any, tweet: any) {
+// --- Route handler ---
+
+function verifyApifySignature(body: string, signature: string): boolean {
+  const secret = process.env.APIFY_WEBHOOK_SECRET;
+  if (!secret) {
+    throw new Error('APIFY_WEBHOOK_SECRET environment variable is required');
+  }
+
+  const expected = createHmac('sha256', secret).update(body).digest('hex');
+  const expectedBuf = Buffer.from(expected, 'hex');
+  const signatureBuf = Buffer.from(signature, 'hex');
+
+  if (expectedBuf.length !== signatureBuf.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expectedBuf, signatureBuf);
+}
+
+export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const signature = request.headers.get('x-apify-signature');
+    if (!signature) {
+      return NextResponse.json({ error: 'Missing webhook signature' }, { status: 401 });
+    }
 
-    // Record the trigger
-    await supabase.from('alert_triggers').insert({
-      alert_id: alert.id,
-      user_id: alert.user_id,
-      type: 'social',
-      data: {
-        platform: alert.platform,
-        content: tweet.text,
-        keywords: alert.keywords,
-        tweet_url: tweet.url,
-        author: tweet.author?.userName,
-        engagement: {
-          likes: tweet.likesCount || 0,
-          retweets: tweet.retweetsCount || 0,
-          replies: tweet.repliesCount || 0,
-        },
-      },
+    const rawBody = await request.text();
+
+    if (!verifyApifySignature(rawBody, signature)) {
+      return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+    }
+
+    const body = JSON.parse(rawBody);
+    const webhookData = apifyWebhookSchema.parse(body);
+
+    if (webhookData.eventData.status !== 'SUCCEEDED') {
+      return NextResponse.json({ success: true, message: 'Webhook received but run not successful' });
+    }
+
+    const outputDatasetId = webhookData.eventData.stats?.outputDatasetId;
+    if (!outputDatasetId) {
+      return NextResponse.json({ success: true, message: 'No output dataset found' });
+    }
+
+    // Fetch tweets and alerts in parallel — independent data sources
+    const [tweets, alerts] = await Promise.all([
+      fetchTweetsFromDataset(outputDatasetId),
+      fetchActiveAlerts(),
+    ]);
+
+    if (tweets.length === 0 || alerts.length === 0) {
+      return NextResponse.json({ success: true, message: 'No tweets or alerts to process' });
+    }
+
+    // Pure: build index once O(m×k), then match O(n×k)
+    const keywordIndex = buildAccountKeywordIndex(alerts);
+    const matches = findMatchingPairs(tweets, keywordIndex);
+
+    // I/O: trigger all matches in parallel
+    await Promise.allSettled(
+      matches.map(({ alert, tweet }) => triggerSingleAlert(alert, tweet))
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: `Processed ${tweets.length} tweets, ${matches.length} alerts triggered`,
     });
-
-    // Send SSE event to connected clients
-    await broadcastUpdate('social', {
-      platform: alert.platform,
-      account: alert.platform,
-      content: tweet.text,
-      keywords: alert.keywords,
-      tweet_url: tweet.url,
-      author: tweet.author?.userName,
-      engagement: {
-        likes: tweet.likesCount || 0,
-        retweets: tweet.retweetsCount || 0,
-        replies: tweet.repliesCount || 0,
-      },
-      timestamp: Date.now(),
-    });
-
-    // Send Telegram alert
-    await sendUnifiedAlert({
-      userId: alert.user_id,
-      alertType: 'social',
-      message: `🚨 Social Alert: @${alert.platform} mentioned your keywords`,
-      data: {
-        account: alert.platform,
-        keywords: alert.keywords,
-        tweet_url: tweet.url,
-        content: tweet.text.substring(0, 100) + '...',
-      },
-    });
-
-    console.warn(`Alert triggered for ${alert.platform}: "${tweet.text.substring(0, 50)}..."`);
   } catch (error) {
-    console.error('Error triggering alert:', error);
+    console.error('Error processing Apify webhook:', error);
+    return NextResponse.json({ error: 'Failed to process webhook' }, { status: 500 });
   }
 }

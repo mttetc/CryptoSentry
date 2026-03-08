@@ -1,11 +1,8 @@
 import { TelegramSetup } from '@/components/telegram/telegram-setup';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getOptionalSession } from '@/lib/api/auth';
 
 export default async function SettingsPage() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { session } = await getOptionalSession();
 
   if (!session?.user.id) {
     return <div>Please log in to access settings.</div>;
@@ -17,7 +14,6 @@ export default async function SettingsPage() {
 
       <div className="grid gap-8">
         <TelegramSetup userId={session.user.id} />
-        {/* Other settings components */}
       </div>
     </div>
   );

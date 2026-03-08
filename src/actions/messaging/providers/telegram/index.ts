@@ -1,4 +1,10 @@
-export * from './alert-notifications';
-export * from './telegram-voice-alerts';
-export * from './voice-calls';
-export * from './telegram-utils';
+export { sendTelegramAlert } from './alert-notifications';
+export { sendTelegramVoiceCallSimple } from './voice-calls';
+export {
+  sendTelegramMessage,
+  answerCallbackQuery,
+  extractUserFromTelegramMessage,
+  verifyWebhookSignature,
+  getTelegramUser,
+  TELEGRAM_API_BASE,
+} from './telegram-utils';

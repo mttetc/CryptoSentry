@@ -16,6 +16,59 @@ import {
   Zap,
 } from 'lucide-react';
 
+function getStatusIcon(connected: boolean) {
+  return connected ? (
+    <CheckCircle className="h-5 w-5 text-green-500" />
+  ) : (
+    <XCircle className="h-5 w-5 text-red-500" />
+  );
+}
+
+function getStatusBadge(connected: boolean) {
+  return (
+    <Badge variant={connected ? 'default' : 'destructive'}>
+      {connected ? 'Connected' : 'Disconnected'}
+    </Badge>
+  );
+}
+
+interface ServiceInfo {
+  connected: boolean;
+  error?: string;
+}
+
+function ServiceCard({ name, service, icon, description }: {
+  name: string;
+  service: ServiceInfo;
+  icon: React.ReactNode;
+  description: string;
+}) {
+  return (
+    <Card
+      className={
+        service.connected ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
+      }
+    >
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          {icon}
+          {name}
+          {getStatusIcon(service.connected)}
+        </CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="flex items-center justify-between">
+          {getStatusBadge(service.connected)}
+        </div>
+        {service.error && (
+          <p className="mt-2 text-sm text-red-600">{service.error}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 interface SystemStatus {
   apify: {
     connected: boolean;
@@ -96,22 +149,6 @@ export function SystemStatus() {
     );
   }
 
-  const getStatusIcon = (connected: boolean) => {
-    return connected ? (
-      <CheckCircle className="h-5 w-5 text-green-500" />
-    ) : (
-      <XCircle className="h-5 w-5 text-red-500" />
-    );
-  };
-
-  const getStatusBadge = (connected: boolean) => {
-    return (
-      <Badge variant={connected ? 'default' : 'destructive'}>
-        {connected ? 'Connected' : 'Disconnected'}
-      </Badge>
-    );
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -126,101 +163,30 @@ export function SystemStatus() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Apify Status */}
-        <Card
-          className={
-            status.apify.connected ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
-          }
-        >
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Zap className="h-5 w-5 text-blue-500" />
-              Apify
-              {getStatusIcon(status.apify.connected)}
-            </CardTitle>
-            <CardDescription>Twitter monitoring service</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex items-center justify-between">
-              {getStatusBadge(status.apify.connected)}
-            </div>
-            {status.apify.error && (
-              <p className="mt-2 text-sm text-red-600">{status.apify.error}</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Database Status */}
-        <Card
-          className={
-            status.database.connected ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
-          }
-        >
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Database className="h-5 w-5 text-purple-500" />
-              Database
-              {getStatusIcon(status.database.connected)}
-            </CardTitle>
-            <CardDescription>Supabase connection</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex items-center justify-between">
-              {getStatusBadge(status.database.connected)}
-            </div>
-            {status.database.error && (
-              <p className="mt-2 text-sm text-red-600">{status.database.error}</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Telegram Status */}
-        <Card
-          className={
-            status.telegram.connected ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
-          }
-        >
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <MessageSquare className="h-5 w-5 text-blue-500" />
-              Telegram
-              {getStatusIcon(status.telegram.connected)}
-            </CardTitle>
-            <CardDescription>Voice alerts service</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex items-center justify-between">
-              {getStatusBadge(status.telegram.connected)}
-            </div>
-            {status.telegram.error && (
-              <p className="mt-2 text-sm text-red-600">{status.telegram.error}</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* WhatsApp Status */}
-        <Card
-          className={
-            status.whatsapp.connected ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
-          }
-        >
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Smartphone className="h-5 w-5 text-green-500" />
-              WhatsApp
-              {getStatusIcon(status.whatsapp.connected)}
-            </CardTitle>
-            <CardDescription>Voice alerts service</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex items-center justify-between">
-              {getStatusBadge(status.whatsapp.connected)}
-            </div>
-            {status.whatsapp.error && (
-              <p className="mt-2 text-sm text-red-600">{status.whatsapp.error}</p>
-            )}
-          </CardContent>
-        </Card>
+        <ServiceCard
+          name="Apify"
+          service={status.apify}
+          icon={<Zap className="h-5 w-5 text-blue-500" />}
+          description="Twitter monitoring service"
+        />
+        <ServiceCard
+          name="Database"
+          service={status.database}
+          icon={<Database className="h-5 w-5 text-purple-500" />}
+          description="Supabase connection"
+        />
+        <ServiceCard
+          name="Telegram"
+          service={status.telegram}
+          icon={<MessageSquare className="h-5 w-5 text-blue-500" />}
+          description="Voice alerts service"
+        />
+        <ServiceCard
+          name="WhatsApp"
+          service={status.whatsapp}
+          icon={<Smartphone className="h-5 w-5 text-green-500" />}
+          description="Voice alerts service"
+        />
       </div>
 
       {/* Monitoring Status */}

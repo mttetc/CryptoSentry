@@ -1,20 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { AuthError, requireAuth } from '@/lib/api/auth';
+import { type NextRequest, NextResponse } from 'next/server';
 import { apifyWebhookManager } from '@/lib/services/apify/webhook-manager';
 
 export async function GET(_request: NextRequest) {
   try {
-    // Check authentication
-    const supabase = await createServerSupabaseClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.user.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // List all webhooks
+    await requireAuth();
     const webhooks = await apifyWebhookManager.listWebhooks();
 
     return NextResponse.json({
@@ -28,6 +18,9 @@ export async function GET(_request: NextRequest) {
       })),
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('Error listing webhooks:', error);
     return NextResponse.json({ error: 'Failed to list webhooks' }, { status: 500 });
   }
@@ -35,29 +28,21 @@ export async function GET(_request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
-    const supabase = await createServerSupabaseClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.user.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    await requireAuth();
     const body = await request.json();
     const { action, webhookId, config } = body;
 
     switch (action) {
-      case 'create':
+      case 'create': {
         const newWebhookId = await apifyWebhookManager.createWebhook(config);
         return NextResponse.json({
           success: true,
           webhookId: newWebhookId,
           message: 'Webhook created successfully',
         });
+      }
 
-      case 'update':
+      case 'update': {
         if (!webhookId) {
           return NextResponse.json({ error: 'Webhook ID is required for update' }, { status: 400 });
         }
@@ -66,8 +51,9 @@ export async function POST(request: NextRequest) {
           success: true,
           message: 'Webhook updated successfully',
         });
+      }
 
-      case 'delete':
+      case 'delete': {
         if (!webhookId) {
           return NextResponse.json({ error: 'Webhook ID is required for delete' }, { status: 400 });
         }
@@ -76,11 +62,16 @@ export async function POST(request: NextRequest) {
           success: true,
           message: 'Webhook deleted successfully',
         });
+      }
 
-      default:
+      default: {
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+      }
     }
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('Error managing webhook:', error);
     return NextResponse.json({ error: 'Failed to manage webhook' }, { status: 500 });
   }

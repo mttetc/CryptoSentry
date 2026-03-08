@@ -1,12 +1,36 @@
 import { sseEventSchema } from '@/actions/monitor/schemas/sse';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface UseSSEOptions {
   onPriceUpdate?: (_data: { symbol: string; price: number; timestamp: number }) => void;
   onSocialUpdate?: (_data: { platform: string; content: string; timestamp: number }) => void;
   onInit?: (_data: { connectionId: string; status: string; userId?: string }) => void;
   onTimeout?: (_data: { reason: string; timestamp: number }) => void;
-  onError?: (_data: { message: string; code?: string; details?: any }) => void;
+  onError?: (_data: { message: string; code?: string; details?: Record<string, unknown> }) => void;
+}
+
+function tryParseAndValidate(
+  event: Event,
+  type: string
+): Record<string, unknown> | null {
+  if (!(event instanceof MessageEvent)) {
+    return null;
+  }
+
+  try {
+    const data = JSON.parse(event.data);
+    const result = sseEventSchema.safeParse({ type, data });
+
+    if (!result.success) {
+      console.error(`Invalid ${type} data:`, result.error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error(`Failed to process ${type} event:`, error);
+    return null;
+  }
 }
 
 export function useSSE(url: string, options: UseSSEOptions = {}) {
@@ -18,7 +42,7 @@ export function useSSE(url: string, options: UseSSEOptions = {}) {
   const eventSourceRef = useRef<EventSource | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
 
-  const connect = useCallback((): void => {
+  const connect = (): void => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
@@ -28,180 +52,100 @@ export function useSSE(url: string, options: UseSSEOptions = {}) {
       const eventSource = new EventSource(url);
       eventSourceRef.current = eventSource;
 
-      // Handle connection open
       eventSource.addEventListener('open', () => {
         setIsConnected(true);
         setError(null);
         lastActivityRef.current = Date.now();
       });
 
-      // Handle init event
       eventSource.addEventListener('init', (event) => {
-        if (event instanceof MessageEvent) {
-          try {
-            const data = JSON.parse(event.data);
-            const validationResult = sseEventSchema.safeParse({
-              type: 'init',
-              data,
-            });
-
-            if (!validationResult.success) {
-              console.error('Invalid init data:', validationResult.error);
-              return;
-            }
-
-            setConnectionId(data.connectionId);
-            lastActivityRef.current = Date.now();
-
-            if (onInit) {
-              onInit(data);
-            }
-          } catch (err) {
-            console.error('Failed to process init event:', err);
-          }
+        const data = tryParseAndValidate(event, 'init');
+        if (!data) {
+          return;
         }
+
+        setConnectionId(data.connectionId as string);
+        lastActivityRef.current = Date.now();
+        onInit?.(data as Parameters<NonNullable<UseSSEOptions['onInit']>>[0]);
       });
 
-      // Handle ping events (heartbeat)
-      eventSource.addEventListener('ping', (event) => {
-        if (event instanceof MessageEvent) {
-          try {
-            lastActivityRef.current = Date.now();
-          } catch (err) {
-            console.error('Failed to process ping event:', err);
-          }
-        }
+      eventSource.addEventListener('ping', () => {
+        lastActivityRef.current = Date.now();
       });
 
-      // Handle price updates
       if (onPriceUpdate) {
         eventSource.addEventListener('price_update', (event) => {
-          if (event instanceof MessageEvent) {
-            try {
-              const data = JSON.parse(event.data);
-              const validationResult = sseEventSchema.safeParse({
-                type: 'price_update',
-                data,
-              });
-
-              if (!validationResult.success) {
-                console.error('Invalid price update data:', validationResult.error);
-                return;
-              }
-
-              lastActivityRef.current = Date.now();
-              onPriceUpdate(data);
-            } catch (err) {
-              console.error('Failed to process price update:', err);
-            }
+          const data = tryParseAndValidate(event, 'price_update');
+          if (!data) {
+            return;
           }
+
+          lastActivityRef.current = Date.now();
+          onPriceUpdate(data as Parameters<NonNullable<UseSSEOptions['onPriceUpdate']>>[0]);
         });
       }
 
-      // Handle social updates
       if (onSocialUpdate) {
         eventSource.addEventListener('social_update', (event) => {
-          if (event instanceof MessageEvent) {
-            try {
-              const data = JSON.parse(event.data);
-              const validationResult = sseEventSchema.safeParse({
-                type: 'social_update',
-                data,
-              });
-
-              if (!validationResult.success) {
-                console.error('Invalid social update data:', validationResult.error);
-                return;
-              }
-
-              lastActivityRef.current = Date.now();
-              onSocialUpdate(data);
-            } catch (err) {
-              console.error('Failed to process social update:', err);
-            }
+          const data = tryParseAndValidate(event, 'social_update');
+          if (!data) {
+            return;
           }
+
+          lastActivityRef.current = Date.now();
+          onSocialUpdate(data as Parameters<NonNullable<UseSSEOptions['onSocialUpdate']>>[0]);
         });
       }
 
-      // Handle timeout events
       if (onTimeout) {
         eventSource.addEventListener('timeout', (event) => {
-          if (event instanceof MessageEvent) {
-            try {
-              const data = JSON.parse(event.data);
-              const validationResult = sseEventSchema.safeParse({
-                type: 'timeout',
-                data,
-              });
-
-              if (!validationResult.success) {
-                console.error('Invalid timeout data:', validationResult.error);
-                return;
-              }
-
-              onTimeout(data);
-              eventSource.close();
-              setIsConnected(false);
-              setError(`Connection timeout: ${data.reason}`);
-            } catch (err) {
-              console.error('Failed to process timeout event:', err);
-            }
+          const data = tryParseAndValidate(event, 'timeout');
+          if (!data) {
+            return;
           }
+
+          onTimeout(data as Parameters<NonNullable<UseSSEOptions['onTimeout']>>[0]);
+          eventSource.close();
+          setIsConnected(false);
+          setError(`Connection timeout: ${data.reason}`);
         });
       }
 
-      // Handle error events from server
       eventSource.addEventListener('error', (event) => {
         if (event instanceof MessageEvent) {
-          try {
-            const data = JSON.parse(event.data);
-            const validationResult = sseEventSchema.safeParse({
-              type: 'error',
-              data,
-            });
-
-            if (!validationResult.success) {
-              console.error('Invalid error data:', validationResult.error);
-              return;
-            }
-
-            if (onError) {
-              onError(data);
-            }
-
-            setError(data.message);
-
-            if (data.code === 'UNAUTHORIZED') {
-              // Don't retry on auth errors
-              eventSource.close();
-              setIsConnected(false);
-            }
-          } catch (err) {
-            console.error('Failed to process error event:', err);
+          const data = tryParseAndValidate(event, 'error');
+          if (!data) {
+            return;
           }
-        } else if (eventSource.readyState === EventSource.CLOSED) {
-          // Handle connection errors
+
+          onError?.(data as Parameters<NonNullable<UseSSEOptions['onError']>>[0]);
+          setError(data.message as string);
+
+          if (data.code === 'UNAUTHORIZED') {
+            eventSource.close();
+            setIsConnected(false);
+          }
+          return;
+        }
+
+        if (eventSource.readyState === EventSource.CLOSED) {
           setIsConnected(false);
           setError('Connection lost');
           eventSource.close();
         }
       });
-    } catch (err) {
-      console.error('Failed to create EventSource:', err);
+    } catch (error) {
+      console.error('Failed to create EventSource:', error);
       setError('Failed to connect to event source');
     }
-  }, [url, onPriceUpdate, onSocialUpdate, onInit, onTimeout, onError]);
+  };
 
-  // Cleanup on unmount
   useEffect(() => {
     connect();
 
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
+      eventSourceRef.current?.close();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {

@@ -7,12 +7,14 @@ import { Bot, MessageSquare, Activity, CheckCircle, Plus } from 'lucide-react';
 import { TelegramTutorial } from './telegram-tutorial';
 import { CreateAlertForm } from './create-alert-form';
 import { ActiveConversations } from './active-conversations';
+import type { SocialAlertWithStats } from '@/types/alerts';
 
 interface ModernDashboardProps {
   userId: string;
+  initialAlerts?: SocialAlertWithStats[];
 }
 
-export function ModernDashboard({ userId }: ModernDashboardProps) {
+export function ModernDashboard({ userId, initialAlerts }: ModernDashboardProps) {
   const [activeTab, setActiveTab] = useState('tutorial');
 
   return (
@@ -90,7 +92,7 @@ export function ModernDashboard({ userId }: ModernDashboardProps) {
         </TabsContent>
 
         <TabsContent value="conversations" className="space-y-6">
-          <ActiveConversations userId={userId} />
+          <ActiveConversations userId={userId} initialAlerts={initialAlerts} />
         </TabsContent>
       </Tabs>
     </div>

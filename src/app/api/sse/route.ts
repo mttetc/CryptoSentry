@@ -1,9 +1,9 @@
-import { SSEEventType } from '@/actions/monitor/schemas/sse';
+import type { SSEEventType } from '@/actions/monitor/schemas/sse';
 import { sseConfig } from '@/lib/config/sse';
 import { rateLimit } from '@/actions/messaging/utils/rate-limit';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { AuthError, requireAuth } from '@/lib/api/auth';
 import { monitorEvent } from '@/actions/monitor/lib/core';
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { FEATURES } from '@/lib/config/features';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 const CONNECTIONS = new Map<
   string,
   {
-    controller: ReadableStreamController<Uint8Array>;
+    controller: ReadableStreamController<Uint8Array<ArrayBuffer>>;
     userId: string;
     timeoutId: NodeJS.Timeout;
     heartbeatId: NodeJS.Timeout;
@@ -27,7 +27,7 @@ const USER_CONNECTIONS = new Map<string, Set<string>>();
 /**
  * Helper function to format Server-Sent Events (SSE) messages
  */
-function encodeSSE(type: SSEEventType, data: any): Uint8Array {
+function encodeSSE(type: SSEEventType, data: Record<string, unknown>): Uint8Array<ArrayBuffer> {
   return new TextEncoder().encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
@@ -86,15 +86,14 @@ export async function GET(request: NextRequest) {
     // Apply rate limiting
     const rateLimitResult = await rateLimit(ip, '/api/sse', userAgent);
     if (!rateLimitResult.success) {
-      return new Response(
-        JSON.stringify({
+      return Response.json(
+        {
           error: 'Too many requests',
           resetAt: new Date(rateLimitResult.resetAt).toISOString(),
-        }),
+        },
         {
           status: 429,
           headers: {
-            'Content-Type': 'application/json',
             'Retry-After': Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString(),
           },
         }
@@ -104,37 +103,25 @@ export async function GET(request: NextRequest) {
     let userId: string;
 
     if (FEATURES.isDevMode) {
-      // In dev mode, use a default user ID
       userId = 'dev-user';
     } else {
-      // Check authentication
-      const supabase = await createServerSupabaseClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.user.id) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' },
-        });
+      try {
+        const auth = await requireAuth();
+        userId = auth.userId;
+      } catch (error) {
+        if (error instanceof AuthError) {
+          return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        throw error;
       }
-
-      userId = session.user.id;
     }
 
     // Check if user has reached maximum connections
     const userConnections = USER_CONNECTIONS.get(userId) || new Set();
     if (userConnections.size >= sseConfig.maxConnectionsPerUser) {
-      return new Response(
-        JSON.stringify({
-          error: 'Maximum connections reached',
-          limit: sseConfig.maxConnectionsPerUser,
-        }),
-        {
-          status: 429,
-          headers: { 'Content-Type': 'application/json' },
-        }
+      return Response.json(
+        { error: 'Maximum connections reached', limit: sseConfig.maxConnectionsPerUser },
+        { status: 429 }
       );
     }
 
@@ -240,54 +227,29 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('SSE route error:', error);
-    return new Response(
-      JSON.stringify({
-        error: 'Internal Server Error',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
+    return Response.json(
+      { error: 'Internal Server Error', message: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
     );
   }
 }
 
 export async function POST(request: Request) {
   try {
-    // Check authentication
-    const supabase = await createServerSupabaseClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const { userId } = await requireAuth();
 
-    if (!session?.user.id) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Parse and validate the event
     const event = await request.json();
-
-    // Process the event
     const result = await monitorEvent(event);
 
     if (!result.success) {
-      return new Response(JSON.stringify({ error: result.error }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return Response.json({ error: result.error }, { status: 400 });
     }
 
-    // Broadcast to connected clients for this user
-    const userConnections = USER_CONNECTIONS.get(session.user.id);
+    const userConnections = USER_CONNECTIONS.get(userId);
     if (userConnections) {
       let eventType: SSEEventType;
-      let eventData: any;
+      let eventData: Record<string, unknown>;
 
-      // Format the event based on type
       if (event.type === 'price') {
         eventType = 'price_update';
         eventData = {
@@ -303,13 +265,9 @@ export async function POST(request: Request) {
           content: event.data.content,
         };
       } else {
-        return new Response(JSON.stringify({ error: 'Invalid event type' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return Response.json({ error: 'Invalid event type' }, { status: 400 });
       }
 
-      // Broadcast to all connections for this user
       for (const connectionId of userConnections) {
         const connection = CONNECTIONS.get(connectionId);
         if (connection) {
@@ -324,21 +282,15 @@ export async function POST(request: Request) {
       }
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return Response.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('Error processing event:', error);
-    return new Response(
-      JSON.stringify({
-        error: 'Failed to process event',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
+    return Response.json(
+      { error: 'Failed to process event', message: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
     );
   }
 }

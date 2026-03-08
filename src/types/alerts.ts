@@ -19,3 +19,30 @@ export interface SocialAlert extends BaseAlert {
   sentiment?: 'positive' | 'negative' | 'neutral';
   triggered_at?: string;
 }
+
+export interface AlertTweet {
+  id: string;
+  text: string;
+  author: string;
+  url: string;
+  timestamp: string;
+  engagement: {
+    likes: number;
+    retweets: number;
+    replies: number;
+  };
+}
+
+export interface SocialAlertWithStats {
+  id: string;
+  user_id: string;
+  platform: string;
+  account: string;
+  keywords: string[];
+  is_active: boolean;
+  telegram_conversation_id: string | null;
+  created_at: string;
+  tweetCount: number;
+  lastActivity: string;
+  recentTweets: AlertTweet[];
+}

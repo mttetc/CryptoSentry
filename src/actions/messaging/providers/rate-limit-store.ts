@@ -13,7 +13,7 @@ export const globalLimits = {
   lastMinute: new Map<number, number>(),
   lastHour: new Map<number, number>(),
   maxPerMinute: 6000,
-  maxPerHour: 100000,
+  maxPerHour: 100_000,
   adjustmentFactor: 0.8, // Reduce limits by 20% when under attack
   isUnderAttack: false,
   attackThreshold: 0.9, // 90% of max limit triggers attack mode
@@ -27,8 +27,8 @@ export { MAX_ENTRIES };
 // Clean up old global limit entries
 setInterval(() => {
   const now = Date.now();
-  const currentMinute = Math.floor(now / 60000);
-  const currentHour = Math.floor(now / 3600000);
+  const currentMinute = Math.floor(now / 60_000);
+  const currentHour = Math.floor(now / 3_600_000);
 
   // Clean up minute counters older than 2 minutes
   for (const [minute] of globalLimits.lastMinute) {
@@ -53,7 +53,7 @@ setInterval(() => {
 
   globalLimits.isUnderAttack =
     minuteLoad > globalLimits.attackThreshold || hourLoad > globalLimits.attackThreshold;
-}, 60000);
+}, 60_000);
 
 // Clean up old entries periodically
 setInterval(() => {
@@ -76,7 +76,7 @@ export async function generateKey(ip: string, path: string, userAgent: string): 
 export async function getRateLimitConfig(path: string): Promise<RateLimitConfig> {
   // Find matching route pattern
   const matchingPattern = Object.keys(RATE_LIMITS).find((pattern) => {
-    if (pattern === 'default') return false;
+    if (pattern === 'default') { return false; }
     return new RegExp(pattern).test(path);
   });
 

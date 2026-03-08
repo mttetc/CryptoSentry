@@ -1,22 +1,10 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
+import { AuthError, requireAuth } from '@/lib/api/auth';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export async function POST(_request: NextRequest) {
   try {
-    // Check authentication
-    const supabase = await createServerSupabaseClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.user.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Import socialMonitor dynamically to avoid build-time errors
+    await requireAuth();
     const { socialMonitor } = await import('@/lib/services/apify/social-monitor');
-
-    // Stop social monitoring
     await socialMonitor.stopMonitoring();
 
     return NextResponse.json({
@@ -25,6 +13,9 @@ export async function POST(_request: NextRequest) {
       status: socialMonitor.getStatus(),
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('Error stopping monitoring:', error);
     return NextResponse.json({ error: 'Failed to stop monitoring' }, { status: 500 });
   }

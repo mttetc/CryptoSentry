@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { PriceAlert, SocialAlert } from '@/types/alerts';
+import type { PriceAlert, SocialAlert } from '@/types/alerts';
 
 interface PriceData {
   symbol: string;

@@ -5,7 +5,7 @@ import { LogoMark } from '@/components/ui/logo';
 
 export default function LandingHeader() {
   return (
-    <header className="fixed top-0 z-50 w-full border-b border-white/5 bg-[#0C0C0C]/80 backdrop-blur-md">
+    <header className="fixed top-0 z-50 w-full border-b border-white/5 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
         <Link href="/" className="flex items-center gap-2">
           <LogoMark size={20} />

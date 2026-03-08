@@ -166,7 +166,7 @@ export function SystemStatus() {
         <ServiceCard
           name="Apify"
           service={status.apify}
-          icon={<Zap className="h-5 w-5 text-blue-500" />}
+          icon={<Zap className="h-5 w-5 text-primary" />}
           description="Twitter monitoring service"
         />
         <ServiceCard
@@ -178,7 +178,7 @@ export function SystemStatus() {
         <ServiceCard
           name="Telegram"
           service={status.telegram}
-          icon={<MessageSquare className="h-5 w-5 text-blue-500" />}
+          icon={<MessageSquare className="h-5 w-5 text-primary" />}
           description="Voice alerts service"
         />
         <ServiceCard

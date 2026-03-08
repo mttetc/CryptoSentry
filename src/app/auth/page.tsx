@@ -5,7 +5,7 @@ import { AuthForm } from '@/components/auth/auth-form';
 
 export default function AuthPage() {
   return (
-    <div className="landing-dark min-h-screen bg-[#0C0C0C]">
+    <div className="min-h-screen">
       <main className="flex min-h-screen flex-col items-center justify-center px-6">
         <Link href="/" className="mb-10 flex items-center gap-2">
           <LogoMark size={32} />

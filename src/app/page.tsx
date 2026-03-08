@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function LandingPage() {
   return (
-    <div className="landing-dark min-h-screen bg-[#0C0C0C] text-white">
+    <div className="min-h-screen text-white">
       <LandingHeader />
       <main>
         <HeroSection />

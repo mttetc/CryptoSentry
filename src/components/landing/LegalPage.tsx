@@ -16,7 +16,7 @@ interface LegalPageProps {
 
 export default function LegalPage({ title, lastUpdated, sections }: LegalPageProps) {
   return (
-    <div className="landing-dark min-h-screen bg-[#0C0C0C] text-white">
+    <div className="min-h-screen text-white">
       <LandingHeader />
       <main className="pb-24 pt-28">
         <div className="mx-auto max-w-5xl px-6">

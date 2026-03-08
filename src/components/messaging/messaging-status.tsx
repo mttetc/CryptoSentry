@@ -68,7 +68,7 @@ export function MessagingStatus({ userId }: MessagingStatusProps) {
         {/* Telegram Status */}
         <div className="flex items-center justify-between rounded-lg border p-4">
           <div className="flex items-center gap-3">
-            <MessageSquare className="h-6 w-6 text-blue-500" />
+            <MessageSquare className="h-6 w-6 text-primary" />
             <div>
               <h3 className="font-medium">Telegram</h3>
               <p className="text-sm text-muted-foreground">

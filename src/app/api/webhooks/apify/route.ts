@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { broadcastUpdate } from '@/actions/monitor/lib/realtime';
-import { sendUnifiedAlert } from '@/actions/messaging/unified-notifications';
 import { requireApifyToken } from '@/lib/services/apify/config';
+import { processTweets } from '@/lib/services/twitter/pipeline';
+import type { TweetData } from '@/lib/services/twitter/types';
 import { z } from 'zod';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
@@ -45,137 +44,25 @@ interface ApifyTweet {
   repliesCount?: number;
 }
 
-interface SocialAlertRecord {
-  id: string;
-  user_id: string;
-  platform: string;
-  account: string;
-  keywords: string[];
-  is_active: boolean;
-}
+// --- Apify-specific helpers ---
 
-// --- Pure functions ---
-
-interface KeywordEntry {
-  keyword: string;
-  alert: SocialAlertRecord;
-}
-
-/**
- * Build a keyword→alerts index per account.
- * O(m × k) where m=alerts, k=avg keywords per alert.
- */
-function buildAccountKeywordIndex(
-  alerts: SocialAlertRecord[]
-): Map<string, KeywordEntry[]> {
-  const index = new Map<string, KeywordEntry[]>();
-
-  for (const alert of alerts) {
-    const account = alert.platform.toLowerCase();
-    const entries = index.get(account) || [];
-
-    for (const keyword of alert.keywords) {
-      entries.push({ keyword: keyword.toLowerCase(), alert });
-    }
-
-    index.set(account, entries);
-  }
-
-  return index;
-}
-
-function buildEngagement(tweet: ApifyTweet) {
+function normalizeApifyTweet(tweet: ApifyTweet, index: number): TweetData {
   return {
-    likes: tweet.likesCount || 0,
-    retweets: tweet.retweetsCount || 0,
-    replies: tweet.repliesCount || 0,
-  };
-}
-
-function buildTriggerData(alert: SocialAlertRecord, tweet: ApifyTweet): Record<string, unknown> {
-  return {
-    alert_id: alert.id,
-    user_id: alert.user_id,
-    type: 'social',
-    data: {
-      platform: alert.platform,
-      content: tweet.text,
-      keywords: alert.keywords,
-      tweet_url: tweet.url,
-      author: tweet.author?.userName,
-      engagement: buildEngagement(tweet),
+    id: tweet.url || `apify-${Date.now()}-${String(index)}`,
+    text: tweet.text,
+    author: {
+      userName: tweet.author?.userName || 'unknown',
+      displayName: tweet.author?.userName || 'unknown',
+    },
+    createdAt: new Date().toISOString(),
+    url: tweet.url || '',
+    engagement: {
+      likes: tweet.likesCount || 0,
+      retweets: tweet.retweetsCount || 0,
+      replies: tweet.repliesCount || 0,
     },
   };
 }
-
-function buildBroadcastData(alert: SocialAlertRecord, tweet: ApifyTweet): Record<string, unknown> {
-  return {
-    platform: alert.platform,
-    account: alert.platform,
-    content: tweet.text,
-    keywords: alert.keywords,
-    tweet_url: tweet.url,
-    author: tweet.author?.userName,
-    engagement: buildEngagement(tweet),
-    timestamp: Date.now(),
-  };
-}
-
-function buildNotification(alert: SocialAlertRecord, tweet: ApifyTweet) {
-  return {
-    userId: alert.user_id,
-    alertType: 'social' as const,
-    message: `Social Alert: @${alert.platform} mentioned your keywords`,
-    data: {
-      account: alert.platform,
-      keywords: alert.keywords,
-      tweet_url: tweet.url,
-      content: tweet.text.slice(0, 100),
-    },
-  };
-}
-
-/**
- * O(n × k) with account-level Map lookup + keyword index.
- * No nested alert loop — keyword entries are pre-flattened.
- * Deduplicates alert matches per tweet via Set.
- */
-function findMatchingPairs(
-  tweets: ApifyTweet[],
-  accountKeywordIndex: Map<string, KeywordEntry[]>
-): { alert: SocialAlertRecord; tweet: ApifyTweet }[] {
-  const matches: { alert: SocialAlertRecord; tweet: ApifyTweet }[] = [];
-
-  for (const tweet of tweets) {
-    const account = tweet.author?.userName?.toLowerCase();
-    if (!account) {
-      continue;
-    }
-
-    const entries = accountKeywordIndex.get(account);
-    if (!entries) {
-      continue;
-    }
-
-    const lowerText = tweet.text.toLowerCase();
-    const matchedAlertIds = new Set<string>();
-
-    for (const { keyword, alert } of entries) {
-      if (matchedAlertIds.has(alert.id)) {
-        continue;
-      }
-
-      if (lowerText.includes(keyword)) {
-        matchedAlertIds.add(alert.id);
-        matches.push({ alert, tweet });
-      }
-    }
-  }
-
-  return matches;
-}
-
-// --- Single-responsibility I/O ---
 
 async function fetchTweetsFromDataset(datasetId: string): Promise<ApifyTweet[]> {
   const token = requireApifyToken();
@@ -191,28 +78,6 @@ async function fetchTweetsFromDataset(datasetId: string): Promise<ApifyTweet[]> 
 
   return response.json();
 }
-
-async function fetchActiveAlerts(): Promise<SocialAlertRecord[]> {
-  const supabase = await createServerSupabaseClient();
-  const { data } = await supabase
-    .from('social_alerts')
-    .select('id, user_id, platform, account, keywords, is_active')
-    .eq('is_active', true);
-  return data ?? [];
-}
-
-async function triggerSingleAlert(alert: SocialAlertRecord, tweet: ApifyTweet): Promise<void> {
-  const supabase = await createServerSupabaseClient();
-
-  // All three operations are independent — run in parallel
-  await Promise.allSettled([
-    supabase.from('alert_triggers').insert(buildTriggerData(alert, tweet)),
-    broadcastUpdate('social', buildBroadcastData(alert, tweet)),
-    sendUnifiedAlert(buildNotification(alert, tweet)),
-  ]);
-}
-
-// --- Route handler ---
 
 function verifyApifySignature(body: string, signature: string): boolean {
   const secret = process.env.APIFY_WEBHOOK_SECRET;
@@ -230,6 +95,8 @@ function verifyApifySignature(body: string, signature: string): boolean {
 
   return timingSafeEqual(expectedBuf, signatureBuf);
 }
+
+// --- Route handler ---
 
 export async function POST(request: NextRequest) {
   try {
@@ -256,28 +123,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'No output dataset found' });
     }
 
-    // Fetch tweets and alerts in parallel — independent data sources
-    const [tweets, alerts] = await Promise.all([
-      fetchTweetsFromDataset(outputDatasetId),
-      fetchActiveAlerts(),
-    ]);
+    const apifyTweets = await fetchTweetsFromDataset(outputDatasetId);
 
-    if (tweets.length === 0 || alerts.length === 0) {
-      return NextResponse.json({ success: true, message: 'No tweets or alerts to process' });
+    if (apifyTweets.length === 0) {
+      return NextResponse.json({ success: true, message: 'No tweets to process' });
     }
 
-    // Pure: build index once O(m×k), then match O(n×k)
-    const keywordIndex = buildAccountKeywordIndex(alerts);
-    const matches = findMatchingPairs(tweets, keywordIndex);
-
-    // I/O: trigger all matches in parallel
-    await Promise.allSettled(
-      matches.map(({ alert, tweet }) => triggerSingleAlert(alert, tweet))
-    );
+    // Normalize Apify format → TweetData, then use shared pipeline
+    const normalizedTweets = apifyTweets.map((tweet, index) => normalizeApifyTweet(tweet, index));
+    const result = await processTweets(normalizedTweets);
 
     return NextResponse.json({
       success: true,
-      message: `Processed ${tweets.length} tweets, ${matches.length} alerts triggered`,
+      message: `Processed ${result.processed} tweets, ${result.matched} matches, ${result.triggered} triggered`,
     });
   } catch (error) {
     console.error('Error processing Apify webhook:', error);

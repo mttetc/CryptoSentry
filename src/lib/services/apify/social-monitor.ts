@@ -1,32 +1,33 @@
 import { apifyClient, type Tweet } from './apify-client';
 import { apifyWebhookManager } from './webhook-manager';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { broadcastUpdate } from '@/actions/monitor/lib/realtime';
-import { sendUnifiedAlert } from '@/actions/messaging/unified-notifications';
-import type { SocialAlert } from '@/types/alerts';
+import { processTweets, fetchActiveAlerts } from '@/lib/services/twitter/pipeline';
+import type { TweetData, SocialAlertRow } from '@/lib/services/twitter/types';
 
-// --- Pure functions ---
-
-interface KeywordIndex {
-  keyword: string;
-  alert: SocialAlert;
+function shouldUseApify(): boolean {
+  return process.env.TWITTER_PROVIDER === 'apify' || !process.env.TWITTER_PROVIDER;
 }
 
-/**
- * Build a keyword index: O(m × k) where m=alerts, k=avg keywords per alert.
- * Eliminates the need for nested tweet × alert loops.
- */
-function buildKeywordIndex(alerts: SocialAlert[]): KeywordIndex[] {
-  return alerts.flatMap((alert) =>
-    alert.keywords.map((keyword) => ({
-      keyword: keyword.toLowerCase(),
-      alert,
-    }))
-  );
+// --- Apify Tweet → TweetData normalization ---
+
+function normalizeApifyTweet(tweet: Tweet): TweetData {
+  return {
+    id: tweet.id,
+    text: tweet.text,
+    author: tweet.author,
+    createdAt: tweet.createdAt,
+    url: tweet.url,
+    engagement: {
+      likes: tweet.likesCount ?? 0,
+      retweets: tweet.retweetsCount ?? 0,
+      replies: tweet.repliesCount ?? 0,
+    },
+  };
 }
 
-function groupAlertsByAccount(alerts: SocialAlert[]): Map<string, SocialAlert[]> {
-  const grouped = new Map<string, SocialAlert[]>();
+// --- Helpers for SocialMonitor state management ---
+
+function groupAlertsByAccount(alerts: SocialAlertRow[]): Map<string, SocialAlertRow[]> {
+  const grouped = new Map<string, SocialAlertRow[]>();
 
   for (const alert of alerts) {
     const account = alert.platform === 'twitter' ? 'twitter' : alert.platform;
@@ -38,136 +39,24 @@ function groupAlertsByAccount(alerts: SocialAlert[]): Map<string, SocialAlert[]>
   return grouped;
 }
 
-function buildEngagement(tweet: Tweet) {
-  return {
-    likes: tweet.likesCount || 0,
-    retweets: tweet.retweetsCount || 0,
-    replies: tweet.repliesCount || 0,
-  };
-}
-
-function buildTriggerData(alert: SocialAlert, tweet: Tweet) {
-  return {
-    alert_id: alert.id,
-    triggered_at: new Date().toISOString(),
-    content: tweet.text,
-    tweet_url: tweet.url,
-    tweet_id: tweet.id,
-    author: tweet.author.userName,
-    engagement: buildEngagement(tweet),
-  };
-}
-
-function buildBroadcastData(alert: SocialAlert, tweet: Tweet): Record<string, unknown> {
-  return {
-    platform: alert.platform,
-    account: alert.platform,
-    content: tweet.text,
-    keywords: alert.keywords,
-    tweet_url: tweet.url,
-    author: tweet.author.userName,
-    engagement: buildEngagement(tweet),
-    timestamp: Date.now(),
-  };
-}
-
-function buildNotification(alert: SocialAlert, tweet: Tweet) {
-  return {
-    userId: alert.user_id,
-    alertType: 'social' as const,
-    message: `Social Alert: ${alert.platform} mentioned your keywords`,
-    data: {
-      account: alert.platform,
-      keywords: alert.keywords,
-      tweet_url: tweet.url,
-    },
-  };
-}
-
-/**
- * O(n × k) instead of O(n × m × k):
- * - Build keyword index once: O(m × k)
- * - For each tweet: lowercase once, scan keywords: O(k total unique)
- * - Use Set to deduplicate alert matches per tweet
- */
-function findMatchingPairs(
-  alerts: SocialAlert[],
-  tweets: Tweet[]
-): { alert: SocialAlert; tweet: Tweet }[] {
-  const index = buildKeywordIndex(alerts);
-  const matches: { alert: SocialAlert; tweet: Tweet }[] = [];
-
-  for (const tweet of tweets) {
-    const lowerText = tweet.text.toLowerCase();
-    const matchedAlertIds = new Set<string>();
-
-    for (const { keyword, alert } of index) {
-      if (matchedAlertIds.has(alert.id)) {
-        continue;
-      }
-
-      if (lowerText.includes(keyword)) {
-        matchedAlertIds.add(alert.id);
-        matches.push({ alert, tweet });
-      }
-    }
-  }
-
-  return matches;
-}
-
-// --- Single-responsibility I/O ---
-
-async function fetchActiveAlertsFromDB(): Promise<SocialAlert[]> {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase
-    .from('social_alerts')
-    .select('*')
-    .eq('active', true);
-
-  if (error) {
-    console.error('Error loading active alerts:', error);
-    return [];
-  }
-
-  return data || [];
-}
-
-async function persistTrigger(data: Record<string, unknown>): Promise<boolean> {
-  const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.from('alert_triggers').insert(data);
-
-  if (error) {
-    console.error('Error recording alert trigger:', error);
-    return false;
-  }
-
-  return true;
-}
-
-async function triggerSingleAlert(alert: SocialAlert, tweet: Tweet): Promise<void> {
-  const triggerData = buildTriggerData(alert, tweet);
-  const broadcastData = buildBroadcastData(alert, tweet);
-  const notification = buildNotification(alert, tweet);
-
-  // All three operations are independent — run in parallel
-  await Promise.allSettled([
-    persistTrigger(triggerData),
-    broadcastUpdate('social', broadcastData),
-    sendUnifiedAlert(notification),
-  ]);
-}
-
 // --- Class (stateful orchestrator) ---
 
 export class SocialMonitor {
-  private activeAlerts = new Map<string, SocialAlert[]>();
+  private activeAlerts = new Map<string, SocialAlertRow[]>();
   private webhookId: string | null = null;
   private isMonitoring = false;
 
   async startMonitoring(): Promise<void> {
     if (this.isMonitoring) {
       console.warn('Social monitoring already running');
+      return;
+    }
+
+    // Delegate to twitter monitor if not using Apify
+    if (!shouldUseApify()) {
+      const { twitterMonitor } = await import('@/lib/services/twitter');
+      await twitterMonitor.startMonitoring();
+      this.isMonitoring = true;
       return;
     }
 
@@ -184,6 +73,14 @@ export class SocialMonitor {
   }
 
   async stopMonitoring(): Promise<void> {
+    // Delegate to twitter monitor if not using Apify
+    if (!shouldUseApify()) {
+      const { twitterMonitor } = await import('@/lib/services/twitter');
+      await twitterMonitor.stopMonitoring();
+      this.isMonitoring = false;
+      return;
+    }
+
     if (this.webhookId) {
       try {
         await apifyWebhookManager.deleteWebhook(this.webhookId);
@@ -198,7 +95,7 @@ export class SocialMonitor {
   }
 
   private async loadActiveAlerts(): Promise<void> {
-    const alerts = await fetchActiveAlertsFromDB();
+    const alerts = await fetchActiveAlerts();
     this.activeAlerts = groupAlertsByAccount(alerts);
     console.warn(`Loaded ${alerts.length} active social alerts`);
   }
@@ -236,12 +133,11 @@ export class SocialMonitor {
       try {
         const results = await apifyClient.runBatchTwitterUserTweetsScraper(batch);
 
-        // Process all accounts in this batch in parallel
-        await Promise.allSettled(
-          [...results.entries()].map(([account, tweets]) =>
-            this.processTweetsForAccount(account, tweets)
-          )
-        );
+        // Normalize all tweets and process through shared pipeline
+        for (const [, tweets] of results.entries()) {
+          const normalized = tweets.map((t) => normalizeApifyTweet(t));
+          await processTweets(normalized);
+        }
       } catch (error) {
         console.error(`Error processing batch for accounts ${batch.join(', ')}:`, error);
       }
@@ -254,22 +150,12 @@ export class SocialMonitor {
     }
   }
 
-  private async processTweetsForAccount(account: string, tweets: Tweet[]): Promise<void> {
-    const alerts = this.activeAlerts.get(account);
-    if (!alerts || alerts.length === 0) {
+  async refreshAlerts(): Promise<void> {
+    if (!shouldUseApify()) {
+      const { twitterMonitor } = await import('@/lib/services/twitter');
+      await twitterMonitor.refreshAlerts();
       return;
     }
-
-    // Pure: find all matches
-    const matches = findMatchingPairs(alerts, tweets);
-
-    // I/O: trigger all matches in parallel
-    await Promise.allSettled(
-      matches.map(({ alert, tweet }) => triggerSingleAlert(alert, tweet))
-    );
-  }
-
-  async refreshAlerts(): Promise<void> {
     await this.loadActiveAlerts();
   }
 

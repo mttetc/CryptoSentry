@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'motion/react';
 import { Badge } from '@/components/ui/badge';
+import { Radio } from 'lucide-react';
 import type { SocialAlertWithStats, AlertTweet } from '@/types/alerts';
 
 interface LiveFeedProps {
@@ -33,7 +34,7 @@ function collectFeedItems(alerts: SocialAlertWithStats[]): FeedItem[] {
   }
 
   items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  return items.slice(0, 50);
+  return items.slice(0, 6);
 }
 
 function highlightKeywords(text: string, keywords: string[]) {
@@ -107,11 +108,19 @@ export function LiveFeed({ alerts, flashAlertIds = new Set() }: LiveFeedProps) {
         <span className="text-muted-foreground font-mono text-sm">Live Feed</span>
       </div>
       {items.length === 0 ? (
-        <div className="p-6 text-center">
-          <p className="text-muted-foreground text-xs">No tweets yet. Matches will appear here.</p>
+        <div className="flex flex-col items-center gap-3 px-4 py-10">
+          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-full">
+            <Radio className="text-primary h-5 w-5" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-medium">Waiting for signals</p>
+            <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+              Matched tweets will stream here in real time as your alerts pick them up.
+            </p>
+          </div>
         </div>
       ) : (
-        <div className="max-h-[calc(100vh-10rem)] overflow-y-auto px-4 py-3">
+        <div className="px-4 py-3">
           <AnimatePresence mode="popLayout">
             {items.map((item) => (
               <FeedEntry

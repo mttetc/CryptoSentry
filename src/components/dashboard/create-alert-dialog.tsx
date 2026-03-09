@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +21,17 @@ interface CreateAlertDialogProps {
 export function CreateAlertDialog({ userId, onAlertCreated }: CreateAlertDialogProps) {
   const [open, setOpen] = useState(false);
 
+  // Allow opening from anywhere via custom event
+  useEffect(() => {
+    const handler = () => {
+      setOpen(true);
+    };
+    window.addEventListener('open-create-alert', handler);
+    return () => {
+      window.removeEventListener('open-create-alert', handler);
+    };
+  }, []);
+
   const handleCreated = () => {
     onAlertCreated?.();
     setOpen(false);
@@ -37,9 +48,7 @@ export function CreateAlertDialog({ userId, onAlertCreated }: CreateAlertDialogP
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>New Alert</DialogTitle>
-          <DialogDescription>
-            Monitor a Twitter account for specific keywords.
-          </DialogDescription>
+          <DialogDescription>Monitor a Twitter account for specific keywords.</DialogDescription>
         </DialogHeader>
         <CreateAlertForm
           userId={userId}

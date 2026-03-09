@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,13 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
-import {
-  Field,
-  FieldLabel,
-  FieldError,
-  FieldDescription,
-} from '@/components/ui/field';
-import { Plus, X, Phone } from 'lucide-react';
+import { Field, FieldLabel, FieldError, FieldDescription } from '@/components/ui/field';
+import { X, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createSocialAlert } from '@/actions/alerts';
 
@@ -40,6 +35,7 @@ interface CreateAlertFormProps {
 export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProps) {
   const [newKeyword, setNewKeyword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const keywordInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const form = useForm<AlertFormData>({
@@ -57,12 +53,12 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
     name: 'keywords',
   });
 
-  const addKeyword = () => {
-    const trimmed = newKeyword.trim();
+  const addKeyword = (raw?: string) => {
+    const trimmed = (raw ?? newKeyword).trim();
     if (trimmed && !fields.some((f) => f.value === trimmed)) {
       append({ value: trimmed });
-      setNewKeyword('');
     }
+    setNewKeyword('');
   };
 
   const onSubmit = async (data: AlertFormData) => {
@@ -111,7 +107,7 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
           <Field data-invalid={fieldState.invalid}>
             <FieldLabel htmlFor={field.name}>Account</FieldLabel>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-muted-foreground">@</span>
+              <span className="text-muted-foreground font-mono">@</span>
               <Input
                 {...field}
                 id={field.name}
@@ -127,54 +123,59 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
       {/* Keywords */}
       <Field data-invalid={Boolean(keywordsError)}>
         <FieldLabel>Keywords</FieldLabel>
-        <div className="flex gap-2">
-          <Input
-            placeholder="bitcoin, ethereum..."
+        <div
+          className="border-input focus-within:ring-ring/50 focus-within:border-ring flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border px-3 py-1.5 focus-within:ring-[3px]"
+          onClick={() => keywordInputRef.current?.focus()}
+        >
+          <AnimatePresence mode="popLayout">
+            {fields.map((field, index) => (
+              <motion.div
+                key={field.id}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.15 }}
+              >
+                <Badge variant="default" className="font-mono">
+                  {field.value}
+                  <button
+                    type="button"
+                    onClick={() => remove(index)}
+                    className="ml-1.5 cursor-pointer opacity-60 hover:opacity-100"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          <input
+            ref={keywordInputRef}
+            className="placeholder:text-muted-foreground min-w-[120px] flex-1 bg-transparent text-sm outline-none"
+            placeholder={fields.length === 0 ? 'bitcoin, ethereum...' : ''}
             value={newKeyword}
-            onChange={(e) => setNewKeyword(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val.endsWith(' ') || val.endsWith(',')) {
+                addKeyword(val.slice(0, -1));
+              } else {
+                setNewKeyword(val);
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
                 addKeyword();
               }
+              if (e.key === 'Backspace' && newKeyword === '' && fields.length > 0) {
+                remove(fields.length - 1);
+              }
             }}
+            onBlur={() => addKeyword()}
           />
-          <Button type="button" onClick={addKeyword} variant="secondary" size="icon">
-            <Plus className="h-4 w-4" />
-          </Button>
         </div>
         {keywordsError && <FieldError errors={[keywordsError]} />}
-        <AnimatePresence mode="popLayout">
-          {fields.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex flex-wrap gap-1.5 pt-1"
-            >
-              {fields.map((field, index) => (
-                <motion.div
-                  key={field.id}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Badge variant="default" className="font-mono">
-                    {field.value}
-                    <button
-                      type="button"
-                      onClick={() => remove(index)}
-                      className="ml-1.5 cursor-pointer opacity-60 hover:opacity-100"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <FieldDescription>Press space or comma to add a keyword</FieldDescription>
       </Field>
 
       {/* Telegram Conversation ID */}
@@ -206,19 +207,15 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
         name="callEnabled"
         control={form.control}
         render={({ field }) => (
-          <Field orientation="horizontal" className="rounded-lg border p-3.5">
+          <Field orientation="horizontal" className="justify-between rounded-lg border p-3.5">
             <div className="flex items-center gap-3">
-              <Phone className="h-4 w-4 text-primary" />
+              <Phone className="text-primary h-4 w-4" />
               <div>
                 <p className="text-sm font-medium">Telegram Call</p>
-                <p className="text-xs text-muted-foreground">Ring when keywords match</p>
+                <p className="text-muted-foreground text-xs">Ring when keywords match</p>
               </div>
             </div>
-            <Switch
-              id={field.name}
-              checked={field.value}
-              onCheckedChange={field.onChange}
-            />
+            <Switch id={field.name} checked={field.value} onCheckedChange={field.onChange} />
           </Field>
         )}
       />

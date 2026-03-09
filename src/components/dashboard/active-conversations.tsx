@@ -18,6 +18,7 @@ import {
   Trash2,
   Pause,
   Play,
+  Plus,
   ChevronRight,
 } from 'lucide-react';
 import { deleteSocialAlert, updateSocialAlert } from '@/actions/alerts';
@@ -282,6 +283,25 @@ function CompactAlertCard({
   );
 }
 
+function AddAlertCard() {
+  return (
+    <motion.div variants={cardVariants} layout>
+      <button
+        type="button"
+        onClick={() => {
+          window.dispatchEvent(new CustomEvent('open-create-alert'));
+        }}
+        className="border-primary/20 hover:border-primary/40 hover:bg-primary/5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-6 transition-colors"
+      >
+        <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
+          <Plus className="text-primary h-4 w-4" />
+        </div>
+        <span className="text-muted-foreground text-sm font-medium">Add alert</span>
+      </button>
+    </motion.div>
+  );
+}
+
 function EmptyState() {
   return (
     <motion.div
@@ -325,6 +345,7 @@ export function ActiveConversations({
           ))}
         </AnimatePresence>
       )}
+      <AddAlertCard />
     </div>
   );
 }

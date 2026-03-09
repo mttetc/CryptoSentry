@@ -2,6 +2,7 @@
 
 import { motion } from 'motion/react';
 import { fadeInUp, staggerContainer } from './animations';
+import { Badge } from '@/components/ui/badge';
 
 const steps = [
   {
@@ -36,15 +37,17 @@ export default function HowItWorks() {
         viewport={{ once: true, amount: 0.3 }}
         className="mx-auto max-w-5xl px-6"
       >
-        <motion.p variants={fadeInUp} className="mb-10 text-center font-mono text-sm uppercase tracking-widest text-neutral-400">
+        <motion.p variants={fadeInUp} className="mb-10 text-center font-mono text-sm uppercase tracking-widest text-muted-foreground">
           How it works
         </motion.p>
         <div className="grid gap-x-12 gap-y-10 md:grid-cols-2 lg:grid-cols-4">
           {steps.map((step) => (
             <motion.div key={step.num} variants={fadeInUp}>
-              <span className="font-mono text-sm text-sentry-green">{step.num}</span>
-              <h3 className="mt-3 text-lg font-semibold text-white">{step.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-neutral-400">{step.desc}</p>
+              <Badge variant="default" className="font-mono">
+                {step.num}
+              </Badge>
+              <h3 className="mt-3 text-lg font-semibold">{step.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.desc}</p>
             </motion.div>
           ))}
         </div>

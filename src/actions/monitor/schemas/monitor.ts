@@ -5,10 +5,8 @@ export interface MonitorState {
 }
 
 export interface MonitorEvent {
-  type: 'price' | 'social';
+  type: 'social';
   data: {
-    symbol?: string;
-    price?: number;
     account?: string;
     content?: string;
   };

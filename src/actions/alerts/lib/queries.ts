@@ -1,9 +1,10 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SocialAlertWithStats } from '@/types/alerts';
 
-export async function getSocialAlertsWithStats(userId: string): Promise<SocialAlertWithStats[]> {
-  const supabase = await createServerSupabaseClient();
-
+export async function getSocialAlertsWithStats(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<SocialAlertWithStats[]> {
   const { data: alerts, error } = await supabase
     .from('social_alerts')
     .select('*')
@@ -46,6 +47,7 @@ export async function getSocialAlertsWithStats(userId: string): Promise<SocialAl
         keywords: alert.keywords ?? [],
         is_active: Boolean(alert.is_active),
         telegram_conversation_id: alert.telegram_conversation_id ?? null,
+        call_enabled: Boolean(alert.call_enabled ?? true),
         created_at: String(alert.created_at),
         tweetCount: triggers?.length ?? 0,
         lastActivity: String(triggers?.[0]?.triggered_at ?? alert.created_at),

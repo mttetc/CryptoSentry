@@ -1,28 +1,19 @@
 'use server';
 
-import { monitorPrice } from '@/lib/services/monitoring/price';
 import type { MonitorEvent, MonitorState } from '../schemas/monitor';
 
 export async function monitorEvent(event: MonitorEvent): Promise<MonitorState> {
   try {
     switch (event.type) {
-      case 'price': {
-        if (!event.data.symbol || !event.data.price) {
-          throw new Error('Invalid price event data');
-        }
-        return await monitorPrice(event.data.symbol, event.data.price);
-      }
-
       case 'social': {
-        // Social monitoring will be handled by Apify service
         return {
           success: true,
-          message: 'Social monitoring handled by Apify service',
+          message: 'Social monitoring handled by pipeline',
         };
       }
 
       default: {
-        throw new Error('Unknown event type');
+        throw new Error(`Unknown event type: ${event.type}`);
       }
     }
   } catch (error) {

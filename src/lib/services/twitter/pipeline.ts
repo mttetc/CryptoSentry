@@ -1,6 +1,5 @@
-import type { TweetData, SocialAlertRow, ProcessingResult } from './types';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { broadcastUpdate } from '@/actions/monitor/lib/realtime';
+import type { TweetData, SocialAlertRow, ProcessingResult, PipelineDeps } from './types';
+import { createServiceSupabaseClient } from '@/lib/supabase/server';
 import { sendUnifiedAlert } from '@/actions/messaging/unified-notifications';
 
 // --- Dedup cache (singleton per process) ---
@@ -79,14 +78,11 @@ export function findMatches(
   return matches;
 }
 
-// --- I/O helpers ---
+// --- I/O helpers (used in prod when no deps injected) ---
 
 export async function fetchActiveAlerts(): Promise<SocialAlertRow[]> {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase
-    .from('social_alerts')
-    .select('*')
-    .eq('active', true);
+  const supabase = createServiceSupabaseClient();
+  const { data, error } = await supabase.from('social_alerts').select('*').eq('is_active', true);
 
   if (error) {
     console.error('[Pipeline] Error loading alerts:', error);
@@ -105,15 +101,19 @@ function buildEngagement(tweet: TweetData) {
 }
 
 async function persistTrigger(alert: SocialAlertRow, tweet: TweetData): Promise<void> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = createServiceSupabaseClient();
   const { error } = await supabase.from('alert_triggers').insert({
     alert_id: alert.id,
+    user_id: alert.user_id,
+    type: 'social',
+    data: {
+      content: tweet.text,
+      tweet_url: tweet.url,
+      tweet_id: tweet.id,
+      author: tweet.author.userName,
+      engagement: buildEngagement(tweet),
+    },
     triggered_at: new Date().toISOString(),
-    content: tweet.text,
-    tweet_url: tweet.url,
-    tweet_id: tweet.id,
-    author: tweet.author.userName,
-    engagement: buildEngagement(tweet),
   });
 
   if (error) {
@@ -122,17 +122,6 @@ async function persistTrigger(alert: SocialAlertRow, tweet: TweetData): Promise<
 }
 
 async function triggerAlert(alert: SocialAlertRow, tweet: TweetData): Promise<void> {
-  const broadcastData: Record<string, unknown> = {
-    platform: alert.platform,
-    account: alert.account,
-    content: tweet.text,
-    keywords: alert.keywords,
-    tweet_url: tweet.url,
-    author: tweet.author.userName,
-    engagement: buildEngagement(tweet),
-    timestamp: Date.now(),
-  };
-
   const notification = {
     userId: alert.user_id,
     alertType: 'social' as const,
@@ -144,16 +133,21 @@ async function triggerAlert(alert: SocialAlertRow, tweet: TweetData): Promise<vo
     },
   };
 
-  await Promise.allSettled([
-    persistTrigger(alert, tweet),
-    broadcastUpdate('social', broadcastData),
-    sendUnifiedAlert(notification),
-  ]);
+  await Promise.allSettled([persistTrigger(alert, tweet), sendUnifiedAlert(notification)]);
 }
 
 // --- Main entry point ---
 
-export async function processTweets(tweets: TweetData[]): Promise<ProcessingResult> {
+/**
+ * Process tweets through the pipeline: dedup → match → trigger.
+ *
+ * In prod: called with no deps — fetches alerts from Supabase, persists + broadcasts.
+ * In dev/test: pass `deps` to inject alerts and a custom trigger (no Supabase needed).
+ */
+export async function processTweets(
+  tweets: TweetData[],
+  deps?: PipelineDeps
+): Promise<ProcessingResult> {
   const fresh = dedup(tweets);
   if (fresh.length === 0) {
     return { processed: 0, matched: 0, triggered: 0 };
@@ -161,7 +155,8 @@ export async function processTweets(tweets: TweetData[]): Promise<ProcessingResu
 
   console.warn(`[Pipeline] Processing ${fresh.length} new tweets`);
 
-  const alerts = await fetchActiveAlerts();
+  const alerts = deps ? deps.alerts : await fetchActiveAlerts();
+
   const twitterAlerts = alerts.filter((a) => a.platform === 'twitter');
   const matches = findMatches(twitterAlerts, fresh);
 
@@ -171,11 +166,13 @@ export async function processTweets(tweets: TweetData[]): Promise<ProcessingResu
 
   console.warn(`[Pipeline] Found ${matches.length} keyword matches`);
 
+  const onTrigger = deps?.onTrigger ?? triggerAlert;
+
   const results = await Promise.allSettled(
-    matches.map(({ alert, tweet }) => triggerAlert(alert, tweet))
+    matches.map(({ alert, tweet }) => onTrigger(alert, tweet))
   );
 
   const triggered = results.filter((r) => r.status === 'fulfilled').length;
 
-  return { processed: fresh.length, matched: matches.length, triggered };
+  return { processed: fresh.length, matched: matches.length, triggered, matches };
 }

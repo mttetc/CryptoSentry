@@ -16,7 +16,6 @@ export interface SocialAlertRow {
   platform: string;
   account: string;
   keywords: string[];
-  active?: boolean;
   is_active?: boolean;
 }
 
@@ -24,6 +23,12 @@ export interface ProcessingResult {
   processed: number;
   matched: number;
   triggered: number;
+  matches?: { alert: SocialAlertRow; tweet: TweetData }[];
+}
+
+export interface PipelineDeps {
+  alerts: SocialAlertRow[];
+  onTrigger?: (alert: SocialAlertRow, tweet: TweetData) => Promise<void>;
 }
 
 export type TweetCallback = (tweets: TweetData[]) => void;

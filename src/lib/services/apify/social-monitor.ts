@@ -1,13 +1,9 @@
 import { apifyClient, type Tweet } from './apify-client';
-import { apifyWebhookManager } from './webhook-manager';
 import { processTweets, fetchActiveAlerts } from '@/lib/services/twitter/pipeline';
 import type { TweetData, SocialAlertRow } from '@/lib/services/twitter/types';
 
-function shouldUseApify(): boolean {
-  return process.env.TWITTER_PROVIDER === 'apify' || !process.env.TWITTER_PROVIDER;
-}
-
-// --- Apify Tweet → TweetData normalization ---
+const DEFAULT_POLL_INTERVAL_MS = 60_000;
+const ALERT_REFRESH_INTERVAL = 5; // Refresh alerts from DB every N polls
 
 function normalizeApifyTweet(tweet: Tweet): TweetData {
   return {
@@ -24,152 +20,88 @@ function normalizeApifyTweet(tweet: Tweet): TweetData {
   };
 }
 
-// --- Helpers for SocialMonitor state management ---
-
-function groupAlertsByAccount(alerts: SocialAlertRow[]): Map<string, SocialAlertRow[]> {
-  const grouped = new Map<string, SocialAlertRow[]>();
-
-  for (const alert of alerts) {
-    const account = alert.platform === 'twitter' ? 'twitter' : alert.platform;
-    const existing = grouped.get(account) || [];
-    existing.push(alert);
-    grouped.set(account, existing);
-  }
-
-  return grouped;
-}
-
-// --- Class (stateful orchestrator) ---
-
 export class SocialMonitor {
-  private activeAlerts = new Map<string, SocialAlertRow[]>();
-  private webhookId: string | null = null;
+  private alerts: SocialAlertRow[] = [];
+  private intervalId: ReturnType<typeof setInterval> | null = null;
   private isMonitoring = false;
+  private pollCount = 0;
 
   async startMonitoring(): Promise<void> {
     if (this.isMonitoring) {
-      console.warn('Social monitoring already running');
+      console.warn('[SocialMonitor] Already running');
       return;
     }
 
-    // Delegate to twitter monitor if not using Apify
-    if (!shouldUseApify()) {
-      const { twitterMonitor } = await import('@/lib/services/twitter');
-      await twitterMonitor.startMonitoring();
-      this.isMonitoring = true;
-      return;
-    }
-
-    console.warn('Starting social monitoring with webhooks...');
+    this.alerts = await fetchActiveAlerts();
     this.isMonitoring = true;
 
-    // These are independent — run in parallel
-    await Promise.all([
-      this.loadActiveAlerts(),
-      this.setupWebhook(),
-    ]);
+    // Poll immediately, then on interval
+    await this.poll();
 
-    console.warn('Social monitoring started with webhooks');
+    const interval = Number(process.env.APIFY_POLL_INTERVAL_MS) || DEFAULT_POLL_INTERVAL_MS;
+    this.intervalId = setInterval(() => {
+      this.poll().catch((error) => {
+        console.error('[SocialMonitor] Poll error:', error);
+      });
+    }, interval);
+
+    console.warn(`[SocialMonitor] Started polling every ${interval}ms for ${this.alerts.length} alerts`);
   }
 
   async stopMonitoring(): Promise<void> {
-    // Delegate to twitter monitor if not using Apify
-    if (!shouldUseApify()) {
-      const { twitterMonitor } = await import('@/lib/services/twitter');
-      await twitterMonitor.stopMonitoring();
-      this.isMonitoring = false;
-      return;
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
     }
-
-    if (this.webhookId) {
-      try {
-        await apifyWebhookManager.deleteWebhook(this.webhookId);
-        this.webhookId = null;
-      } catch (error) {
-        console.error('Error deleting webhook:', error);
-      }
-    }
-
     this.isMonitoring = false;
-    console.warn('Social monitoring stopped');
-  }
-
-  private async loadActiveAlerts(): Promise<void> {
-    const alerts = await fetchActiveAlerts();
-    this.activeAlerts = groupAlertsByAccount(alerts);
-    console.warn(`Loaded ${alerts.length} active social alerts`);
-  }
-
-  private async setupWebhook(): Promise<void> {
-    try {
-      const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/webhooks/apify`;
-
-      this.webhookId = await apifyWebhookManager.createWebhook({
-        eventTypes: ['ACTOR.RUN.SUCCEEDED'] as const,
-        requestUrl: webhookUrl,
-        isEnabled: true,
-        condition: 'actorId=="apnow/twitter-user-tweets-scraper"',
-      });
-      console.warn('Webhook created for real-time monitoring:', this.webhookId);
-    } catch (error) {
-      console.error('Failed to setup webhook:', error);
-      throw error;
-    }
-  }
-
-  private async checkAllAlerts(): Promise<void> {
-    if (this.activeAlerts.size === 0) {
-      return;
-    }
-
-    console.warn(`Checking ${this.activeAlerts.size} accounts for alerts...`);
-
-    const accounts = [...this.activeAlerts.keys()];
-    const batchSize = 5;
-
-    for (let i = 0; i < accounts.length; i += batchSize) {
-      const batch = accounts.slice(i, i + batchSize);
-
-      try {
-        const results = await apifyClient.runBatchTwitterUserTweetsScraper(batch);
-
-        // Normalize all tweets and process through shared pipeline
-        for (const [, tweets] of results.entries()) {
-          const normalized = tweets.map((t) => normalizeApifyTweet(t));
-          await processTweets(normalized);
-        }
-      } catch (error) {
-        console.error(`Error processing batch for accounts ${batch.join(', ')}:`, error);
-      }
-
-      if (i + batchSize < accounts.length) {
-        await new Promise((resolve) => {
-          setTimeout(resolve, 1000);
-        });
-      }
-    }
+    console.warn('[SocialMonitor] Stopped');
   }
 
   async refreshAlerts(): Promise<void> {
-    if (!shouldUseApify()) {
-      const { twitterMonitor } = await import('@/lib/services/twitter');
-      await twitterMonitor.refreshAlerts();
-      return;
-    }
-    await this.loadActiveAlerts();
+    this.alerts = await fetchActiveAlerts();
+    console.warn(`[SocialMonitor] Refreshed: ${this.alerts.length} alerts`);
   }
 
   getStatus(): { isMonitoring: boolean; activeAccounts: number; totalAlerts: number } {
-    const totalAlerts = [...this.activeAlerts.values()].reduce(
-      (sum, alerts) => sum + alerts.length,
-      0
-    );
+    const twitterAlerts = this.alerts.filter((a) => a.platform === 'twitter');
+    const accounts = new Set(twitterAlerts.map((a) => a.account));
 
     return {
       isMonitoring: this.isMonitoring,
-      activeAccounts: this.activeAlerts.size,
-      totalAlerts,
+      activeAccounts: accounts.size,
+      totalAlerts: twitterAlerts.length,
     };
+  }
+
+  private async poll(): Promise<void> {
+    this.pollCount++;
+
+    // Periodically refresh alerts from DB (picks up new/deleted alerts)
+    if (this.pollCount % ALERT_REFRESH_INTERVAL === 0) {
+      await this.refreshAlerts();
+    }
+
+    const twitterAlerts = this.alerts.filter((a) => a.platform === 'twitter');
+    if (twitterAlerts.length === 0) {
+      return;
+    }
+
+    // Deduplicate accounts — multiple alerts on same account = 1 Apify call
+    const accounts = [...new Set(twitterAlerts.map((a) => a.account))];
+    console.warn(`[SocialMonitor] Polling ${accounts.length} unique accounts (${twitterAlerts.length} alerts)...`);
+
+    try {
+      // Single batch call to Apify for all accounts
+      const results = await apifyClient.runBatchTwitterUserTweetsScraper(accounts);
+
+      // Process all tweets through the shared pipeline (dedup + match + trigger)
+      for (const [, tweets] of results.entries()) {
+        const normalized = tweets.map((t) => normalizeApifyTweet(t));
+        await processTweets(normalized);
+      }
+    } catch (error) {
+      console.error('[SocialMonitor] Error polling:', error);
+    }
   }
 }
 

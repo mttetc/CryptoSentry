@@ -4,8 +4,8 @@ import { getSocialAlertsWithStats } from '@/actions/alerts/lib/queries';
 
 export async function GET(_request: NextRequest) {
   try {
-    const { userId } = await requireAuth();
-    const alertsWithStats = await getSocialAlertsWithStats(userId);
+    const { supabase, userId } = await requireAuth();
+    const alertsWithStats = await getSocialAlertsWithStats(supabase, userId);
 
     return NextResponse.json({
       success: true,

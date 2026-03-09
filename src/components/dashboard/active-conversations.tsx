@@ -1,145 +1,86 @@
 'use client';
 
 import { useState, useDeferredValue } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
+import { SpotlightCard } from '@/components/ui/spotlight';
 import {
-  Activity,
-  MessageSquare,
   Twitter,
   Hash,
-  TrendingUp,
-  Clock,
-  AlertCircle,
-  RefreshCw,
-  Wifi,
-  WifiOff,
+  Heart,
+  Repeat2,
+  MessageCircle,
+  Phone,
+  PhoneCall,
+  Activity,
+  Trash2,
+  Pause,
+  Play,
+  ChevronRight,
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { useSSE } from '@/hooks/use-sse';
-import { formatDistanceToNow } from 'date-fns';
+import { deleteSocialAlert, updateSocialAlert } from '@/actions/alerts';
+import { formatDistance } from 'date-fns';
+import { useNow } from '@/hooks/use-now';
+import { plural } from '@/lib/utils/plural';
 import type { SocialAlertWithStats, AlertTweet } from '@/types/alerts';
 
 interface ActiveConversationsProps {
   userId: string;
-  initialAlerts?: SocialAlertWithStats[];
+  alerts: SocialAlertWithStats[];
+  onDeleteAlert?: (id: string) => void;
+  onToggleAlert?: (id: string) => void;
+  flashAlertIds?: Set<string>;
 }
 
-function ConnectionStatus({ connected }: { connected: boolean }) {
-  if (connected) {
-    return (
-      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-        <Wifi className="h-3 w-3 text-green-500" />
-        <span>Connected — updates arrive in real-time</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-      <WifiOff className="h-3 w-3 text-red-500" />
-      <span>Disconnected — use refresh to update</span>
-    </div>
-  );
-}
-
-function StatsCards({
-  conversations,
-  sseConnected,
-}: {
-  conversations: SocialAlertWithStats[];
-  sseConnected: boolean;
-}) {
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Active Alerts</CardTitle>
-          <MessageSquare className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{conversations.length}</div>
-          <p className="text-xs text-muted-foreground">Monitoring accounts</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Tweets</CardTitle>
-          <Twitter className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {conversations.reduce((sum, conv) => sum + conv.tweetCount, 0)}
-          </div>
-          <p className="text-xs text-muted-foreground">Captured today</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Keywords</CardTitle>
-          <Hash className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {conversations.reduce((sum, conv) => sum + conv.keywords.length, 0)}
-          </div>
-          <p className="text-xs text-muted-foreground">Being monitored</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Connection</CardTitle>
-          <Clock className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{sseConnected ? 'Live' : 'Offline'}</div>
-          <p className="text-xs text-muted-foreground">
-            {sseConnected ? 'SSE connected' : 'Reconnecting...'}
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
+  exit: { opacity: 0, y: -10, transition: { duration: 0.25 } },
+};
 
 function TweetCard({ tweet }: { tweet: AlertTweet }) {
+  const now = useNow();
   return (
-    <div className="rounded-lg bg-muted p-3">
-      <div className="mb-2 flex items-start justify-between">
+    <div className="rounded-lg border p-2.5">
+      <div className="mb-1 flex items-start justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">@{tweet.author}</span>
-          <span className="text-xs text-muted-foreground">
-            {formatDistanceToNow(new Date(tweet.timestamp), { addSuffix: true })}
+          <a
+            href={`https://x.com/${tweet.author}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary font-mono text-xs font-medium hover:underline"
+          >
+            @{tweet.author}
+          </a>
+          <span className="text-muted-foreground text-[11px]">
+            {formatDistance(new Date(tweet.timestamp), now, { addSuffix: true })}
           </span>
         </div>
         <a
           href={tweet.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-500 hover:text-blue-600"
+          className="text-muted-foreground hover:text-foreground"
         >
-          <Twitter className="h-4 w-4" />
+          <Twitter className="h-3 w-3" />
         </a>
       </div>
-      <p className="mb-2 text-sm text-muted-foreground">
-        {tweet.text.length > 100 ? `${tweet.text.slice(0, 100)}...` : tweet.text}
+      <p className="text-muted-foreground mb-1.5 text-xs leading-relaxed">
+        {tweet.text.length > 140 ? `${tweet.text.slice(0, 140)}...` : tweet.text}
       </p>
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      <div className="text-muted-foreground flex items-center gap-3 text-[11px]">
         <span className="flex items-center gap-1">
-          <span>❤️</span>
+          <Heart className="h-2.5 w-2.5" />
           {tweet.engagement.likes}
         </span>
         <span className="flex items-center gap-1">
-          <span>🔄</span>
+          <Repeat2 className="h-2.5 w-2.5" />
           {tweet.engagement.retweets}
         </span>
         <span className="flex items-center gap-1">
-          <span>💬</span>
+          <MessageCircle className="h-2.5 w-2.5" />
           {tweet.engagement.replies}
         </span>
       </div>
@@ -147,198 +88,242 @@ function TweetCard({ tweet }: { tweet: AlertTweet }) {
   );
 }
 
-function ConversationCard({
-  conversation,
-  sseConnected,
+function CompactAlertCard({
+  alert,
+  isFlashing,
+  onDelete,
+  onToggle,
 }: {
-  conversation: SocialAlertWithStats;
-  sseConnected: boolean;
+  alert: SocialAlertWithStats;
+  isFlashing: boolean;
+  onDelete?: (id: string) => void;
+  onToggle?: (id: string) => void;
 }) {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const now = useNow();
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const result = await deleteSocialAlert(alert.id);
+      if (result.success) {
+        onDelete?.(alert.id);
+      }
+    } catch {
+      // Silent
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleToggle = async () => {
+    setIsToggling(true);
+    try {
+      const result = await updateSocialAlert({
+        id: alert.id,
+        isActive: !alert.is_active,
+      });
+      if (result.success) {
+        onToggle?.(alert.id);
+      }
+    } catch {
+      // Silent
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
+  const matchCount = alert.recentTweets.length;
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-blue-100 p-2">
-              <Twitter className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <CardTitle className="text-lg">@{conversation.account}</CardTitle>
-              <CardDescription>
-                Monitoring {conversation.keywords.length} keywords
-              </CardDescription>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={conversation.is_active ? 'default' : 'secondary'}>
-              {conversation.is_active ? 'Active' : 'Inactive'}
-            </Badge>
-            {conversation.is_active && sseConnected && (
-              <div className="flex items-center gap-1 text-green-500">
-                <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-                <span className="text-xs">Live</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <h4 className="flex items-center gap-2 text-sm font-medium">
-            <Hash className="h-4 w-4" />
-            Keywords
-          </h4>
-          <div className="flex flex-wrap gap-2">
-            {conversation.keywords.map((keyword) => (
-              <Badge key={keyword} variant="outline">
-                {keyword}
+    <motion.div variants={cardVariants} layout>
+      <SpotlightCard className={`bg-card border ${isFlashing ? 'animate-flash-red' : ''}`}>
+        <div className="p-4">
+          {/* Row 1: Account + badges + actions */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <a
+                href={`https://x.com/${alert.account}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-primary truncate font-mono text-sm font-medium"
+              >
+                @{alert.account}
+              </a>
+              <span className="text-muted-foreground hidden text-xs sm:inline">
+                {plural(alert.keywords.length, 'keyword')}
+              </span>
+              <Badge variant={alert.is_active ? 'default' : 'secondary'}>
+                {alert.is_active ? 'Active' : 'Paused'}
               </Badge>
-            ))}
-          </div>
-        </div>
-
-        <Separator />
-
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{conversation.tweetCount}</div>
-            <p className="text-xs text-muted-foreground">Tweets Today</p>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {conversation.recentTweets.length}
             </div>
-            <p className="text-xs text-muted-foreground">Recent Matches</p>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-orange-600">
-              {conversation.recentTweets.reduce((sum, tweet) => sum + tweet.engagement.likes, 0)}
+
+            <div className="flex shrink-0 items-center gap-1">
+              {alert.telegram_conversation_id && (
+                <Badge variant="outline">
+                  {alert.call_enabled ? (
+                    <PhoneCall className="h-3 w-3" />
+                  ) : (
+                    <Phone className="h-3 w-3" />
+                  )}
+                </Badge>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleToggle}
+                disabled={isToggling}
+                aria-label={alert.is_active ? 'Pause alert' : 'Resume alert'}
+                className="h-7 w-7"
+              >
+                {(() => {
+                  if (isToggling) {
+                    return <Spinner size="sm" />;
+                  }
+                  if (alert.is_active) {
+                    return <Pause className="h-3.5 w-3.5" />;
+                  }
+                  return <Play className="h-3.5 w-3.5" />;
+                })()}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                aria-label="Delete alert"
+                className="text-muted-foreground hover:text-destructive h-7 w-7"
+              >
+                {isDeleting ? <Spinner size="sm" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </Button>
             </div>
-            <p className="text-xs text-muted-foreground">Total Likes</p>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {conversation.recentTweets.reduce(
-                (sum, tweet) => sum + tweet.engagement.retweets,
-                0
+
+          {/* Row 2: Keywords + stats */}
+          <div className="mt-2.5 flex items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap gap-1">
+              {alert.keywords.map((keyword) => (
+                <Badge key={keyword} variant="outline" className="font-mono text-[11px]">
+                  <Hash className="mr-0.5 h-2.5 w-2.5" />
+                  {keyword}
+                </Badge>
+              ))}
+            </div>
+            <div className="text-muted-foreground flex shrink-0 items-center gap-3 text-xs">
+              <span className="font-mono">{plural(alert.tweetCount, 'tweet')}</span>
+              {alert.lastActivity && (
+                <span>
+                  {formatDistance(new Date(alert.lastActivity), now, { addSuffix: true })}
+                </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Total Retweets</p>
           </div>
-        </div>
 
-        {conversation.recentTweets.length > 0 && (
-          <>
-            <Separator />
-            <div className="space-y-2">
-              <h4 className="flex items-center gap-2 text-sm font-medium">
-                <TrendingUp className="h-4 w-4" />
-                Recent Matches
-              </h4>
-              <div className="space-y-3">
-                {conversation.recentTweets.slice(0, 3).map((tweet) => (
-                  <TweetCard key={tweet.id} tweet={tweet} />
-                ))}
-              </div>
+          {/* Row 3: Expandable recent matches */}
+          {matchCount > 0 && (
+            <div className="mt-2">
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="text-primary/70 hover:text-primary flex items-center gap-1 text-xs"
+              >
+                <ChevronRight
+                  className={`h-3 w-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                />
+                {plural(matchCount, 'recent match', 'recent matches')}
+              </button>
+              <AnimatePresence>
+                {expanded && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-2 space-y-1.5">
+                      {alert.recentTweets.slice(0, 5).map((tweet) => (
+                        <TweetCard key={tweet.id} tweet={tweet} />
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+          )}
+
+          {/* Incoming call toast */}
+          <AnimatePresence>
+            {isFlashing && alert.call_enabled && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.3 }}
+                className="border-primary/20 mt-3 rounded-lg border bg-[#1a1a1a] px-3 py-2.5"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/20 flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+                    <Phone className="text-primary h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">CryptoSentry</p>
+                    <p className="text-primary text-xs">Incoming call...</p>
+                  </div>
+                  <div className="bg-primary h-2.5 w-2.5 animate-pulse rounded-full" />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </SpotlightCard>
+    </motion.div>
   );
 }
 
 function EmptyState() {
   return (
-    <Card>
-      <CardContent className="p-12 text-center">
-        <AlertCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-        <h3 className="mb-2 text-lg font-semibold">No Active Conversations</h3>
-        <p className="mb-4 text-muted-foreground">
-          You haven&apos;t created any alerts yet. Start monitoring by creating your first alert.
-        </p>
-        <Button
-          onClick={() => {
-            globalThis.location.href = '/dashboard?tab=alerts';
-          }}
-        >
-          Create Your First Alert
-        </Button>
-      </CardContent>
-    </Card>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="col-span-full rounded-xl border border-dashed p-12 text-center"
+    >
+      <div className="bg-primary/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
+        <Activity className="text-primary h-6 w-6" />
+      </div>
+      <p className="text-muted-foreground text-sm">
+        No alerts yet. Click <strong className="text-foreground">New Alert</strong> to get started.
+      </p>
+    </motion.div>
   );
 }
 
-export function ActiveConversations({ initialAlerts }: ActiveConversationsProps) {
-  const [conversations, setConversations] = useState<SocialAlertWithStats[]>(
-    initialAlerts ?? []
-  );
-  const [refreshing, setRefreshing] = useState(false);
-  const deferredConversations = useDeferredValue(conversations);
-  const { toast } = useToast();
-
-  const fetchConversations = async () => {
-    try {
-      const response = await fetch('/api/alerts/social');
-      if (!response.ok) {
-        return;
-      }
-
-      const data = await response.json();
-      setConversations(data.alerts || []);
-    } catch (error) {
-      console.error('Error fetching conversations:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const { isConnected: sseConnected } = useSSE('/api/sse', {
-    onSocialUpdate: () => {
-      fetchConversations();
-    },
-  });
-
-  const handleManualRefresh = async () => {
-    setRefreshing(true);
-    await fetchConversations();
-    toast({ title: 'Data refreshed' });
-  };
+export function ActiveConversations({
+  alerts,
+  onDeleteAlert,
+  onToggleAlert,
+  flashAlertIds = new Set(),
+}: ActiveConversationsProps) {
+  const deferredAlerts = useDeferredValue(alerts);
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-4 text-center">
-        <div className="flex items-center justify-center gap-2">
-          <Activity className="h-8 w-8 text-green-500" />
-          <h2 className="text-3xl font-bold">Live Monitoring</h2>
-        </div>
-        <p className="mx-auto max-w-2xl text-muted-foreground">
-          Real-time tracking of your X accounts and keyword mentions
-        </p>
-        <ConnectionStatus connected={sseConnected} />
-      </div>
-
-      <StatsCards conversations={deferredConversations} sseConnected={sseConnected} />
-
-      <div className="flex justify-center">
-        <Button variant="outline" onClick={handleManualRefresh} disabled={refreshing}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Refreshing...' : 'Refresh Data'}
-        </Button>
-      </div>
-
-      {deferredConversations.length === 0 ? (
+    <div className="flex flex-col gap-2">
+      {deferredAlerts.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="grid gap-6">
-          {deferredConversations.map((conversation) => (
-            <ConversationCard
-              key={conversation.id}
-              conversation={conversation}
-              sseConnected={sseConnected}
+        <AnimatePresence mode="popLayout">
+          {deferredAlerts.map((alert) => (
+            <CompactAlertCard
+              key={alert.id}
+              alert={alert}
+              isFlashing={flashAlertIds.has(alert.id)}
+              onDelete={onDeleteAlert}
+              onToggle={onToggleAlert}
             />
           ))}
-        </div>
+        </AnimatePresence>
       )}
     </div>
   );

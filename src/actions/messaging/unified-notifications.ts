@@ -1,7 +1,7 @@
 'use server';
 
 import { sendTelegramAlert } from '@/actions/messaging/providers/telegram/alert-notifications';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServiceSupabaseClient } from '@/lib/supabase/server';
 import type { AlertNotification, NotificationResult } from '@/types/notifications';
 
 // --- Pure function ---
@@ -37,7 +37,7 @@ function buildDeliveryLogEntry(
 // --- Single-responsibility I/O ---
 
 async function checkTelegramConnected(userId: string): Promise<boolean> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = createServiceSupabaseClient();
   const { data } = await supabase
     .from('user_telegram_settings')
     .select('status')
@@ -49,7 +49,7 @@ async function checkTelegramConnected(userId: string): Promise<boolean> {
 }
 
 async function persistDeliveryLog(entry: Record<string, unknown>): Promise<void> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = createServiceSupabaseClient();
   await supabase.from('alert_delivery_logs').insert(entry);
 }
 

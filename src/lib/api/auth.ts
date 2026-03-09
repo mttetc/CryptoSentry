@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServiceSupabaseClient } from '@/lib/supabase/server';
 
 export class AuthError extends Error {
   constructor(message = 'Unauthorized') {
@@ -11,8 +11,8 @@ export class AuthError extends Error {
 }
 
 /**
- * For server actions and services — throws AuthError on failure.
- * Returns both the Better Auth session and a Supabase client for DB queries.
+ * For server actions — throws AuthError on failure.
+ * Returns a Supabase client (service role) and the authenticated userId.
  */
 export async function requireAuth() {
   const session = await auth.api.getSession({
@@ -23,15 +23,13 @@ export async function requireAuth() {
     throw new AuthError('Unauthorized');
   }
 
-  // Supabase client still used for DB queries (not auth)
-  const supabase = await createServerSupabaseClient();
+  const supabase = createServiceSupabaseClient();
 
   return { supabase, userId: session.user.id };
 }
 
 /**
  * For route handlers — accepts a NextRequest to support both cookies and Bearer tokens.
- * Use this in API routes instead of requireAuth() which relies on next/headers.
  */
 export async function requireAuthFromRequest(request: NextRequest) {
   const session = await auth.api.getSession({
@@ -42,7 +40,7 @@ export async function requireAuthFromRequest(request: NextRequest) {
     throw new AuthError('Unauthorized');
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = createServiceSupabaseClient();
 
   return { supabase, userId: session.user.id };
 }
@@ -55,7 +53,9 @@ export async function getOptionalSession() {
     headers: await headers(),
   });
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = session?.user.id
+    ? createServiceSupabaseClient()
+    : null;
 
   return { supabase, session };
 }

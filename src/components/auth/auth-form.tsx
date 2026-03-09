@@ -4,6 +4,13 @@ import { authClient } from '@/lib/auth-client';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
+import { Field, FieldLabel, FieldError } from '@/components/ui/field';
 
 function GoogleIcon() {
   return (
@@ -16,6 +23,16 @@ function GoogleIcon() {
   );
 }
 
+const signInSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+const signUpSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
 export function AuthForm() {
   const searchParams = useSearchParams();
   const [isSignUp, setIsSignUp] = useState(searchParams.get('register') === 'true');
@@ -23,19 +40,19 @@ export function AuthForm() {
   const { toast } = useToast();
   const router = useRouter();
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
+  const form = useForm<z.infer<typeof signUpSchema>>({
+    resolver: zodResolver(isSignUp ? signUpSchema : signInSchema),
+    defaultValues: { email: '', password: '' },
+  });
 
-    const formData = new FormData(e.currentTarget);
-    const email = String(formData.get('email'));
-    const password = String(formData.get('password'));
+  async function onSubmit(data: z.infer<typeof signUpSchema>) {
+    setLoading(true);
 
     if (isSignUp) {
       const { error } = await authClient.signUp.email({
-        name: email.split('@')[0],
-        email,
-        password,
+        name: data.email.split('@')[0],
+        email: data.email,
+        password: data.password,
       });
       if (error) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
@@ -45,8 +62,8 @@ export function AuthForm() {
       toast({ title: 'Account created' });
     } else {
       const { error } = await authClient.signIn.email({
-        email,
-        password,
+        email: data.email,
+        password: data.password,
       });
       if (error) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
@@ -76,80 +93,82 @@ export function AuthForm() {
 
   return (
     <div className="w-full max-w-sm">
-      <button
-        type="button"
-        onClick={() => router.push('/')}
-        className="mb-6 flex items-center gap-1 text-sm text-neutral-500 transition-colors hover:text-white"
-      >
+      <Button variant="ghost" size="sm" onClick={() => router.push('/')} className="mb-6">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         Back
-      </button>
+      </Button>
+
       <div className="mb-8 text-center">
-        <h1 className="text-2xl font-semibold text-white">
+        <h1 className="text-2xl font-semibold">
           {isSignUp ? 'Create your account' : 'Welcome back'}
         </h1>
-        <p className="mt-2 text-sm text-neutral-500">
+        <p className="mt-2 text-sm text-muted-foreground">
           {isSignUp ? 'Start monitoring in under a minute' : 'Sign in to your account'}
         </p>
       </div>
 
       <div className="space-y-4">
-        <button
-          type="button"
-          onClick={handleGoogleSignIn}
-          className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 text-sm font-medium text-white transition-colors hover:bg-white/10"
-        >
+        <Button variant="outline" onClick={handleGoogleSignIn} className="w-full">
           <GoogleIcon />
           Continue with Google
-        </button>
+        </Button>
 
         <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-white/10" />
-          <span className="text-xs text-neutral-500">or</span>
-          <div className="h-px flex-1 bg-white/10" />
+          <Separator className="flex-1" />
+          <span className="text-xs text-muted-foreground">or</span>
+          <Separator className="flex-1" />
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label htmlFor="email" className="mb-1.5 block text-sm text-neutral-400">Email</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              placeholder="you@example.com"
-              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-neutral-600 focus:border-sentry-green/50 focus:outline-none focus:ring-1 focus:ring-sentry-green/50"
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="mb-1.5 block text-sm text-neutral-400">Password</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              minLength={8}
-              placeholder={isSignUp ? '8 characters minimum' : 'Your password'}
-              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-neutral-600 focus:border-sentry-green/50 focus:outline-none focus:ring-1 focus:ring-sentry-green/50"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="h-10 w-full rounded-lg bg-sentry-green text-sm font-medium text-white transition-colors hover:bg-sentry-green/90 disabled:opacity-50"
-          >
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+          <Controller
+            name="email"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                <Input
+                  {...field}
+                  id={field.name}
+                  type="email"
+                  placeholder="you@example.com"
+                  aria-invalid={fieldState.invalid}
+                />
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
+
+          <Controller
+            name="password"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>Password</FieldLabel>
+                <Input
+                  {...field}
+                  id={field.name}
+                  type="password"
+                  placeholder={isSignUp ? '8 characters minimum' : 'Your password'}
+                  aria-invalid={fieldState.invalid}
+                />
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
+
+          <Button type="submit" disabled={loading} className="w-full">
             {buttonLabel}
-          </button>
+          </Button>
         </form>
 
-        <p className="text-center text-sm text-neutral-500">
+        <p className="text-center text-sm text-muted-foreground">
           {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
           <button
             type="button"
             onClick={() => setIsSignUp(!isSignUp)}
-            className="text-sentry-green hover:underline"
+            className="cursor-pointer text-primary hover:underline"
           >
             {isSignUp ? 'Sign in' : 'Create one'}
           </button>

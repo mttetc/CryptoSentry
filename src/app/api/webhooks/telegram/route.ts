@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServiceSupabaseClient } from '@/lib/supabase/server';
 import { verifyWebhookSignature } from '@/actions/messaging/providers/telegram';
 import {
   extractUserFromTelegramMessage,
@@ -33,18 +33,19 @@ async function handleCallbackQuery(callbackQuery: Record<string, unknown>): Prom
 }
 
 async function handleConnectCommand(appUserId: string, telegramChatId: string): Promise<void> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = createServiceSupabaseClient();
 
   const { error } = await supabase
-    .from('user_notification_settings')
-    .update({
+    .from('user_telegram_settings')
+    .upsert({
+      user_id: appUserId,
       telegram_chat_id: telegramChatId,
-      telegram_setup_in_progress: false,
-    })
-    .eq('user_id', appUserId);
+      status: 'connected',
+      updated_at: new Date().toISOString(),
+    });
 
   if (error) {
-    console.error('Failed to update user preferences:', error);
+    console.error('Failed to update telegram settings:', error);
     throw error;
   }
 

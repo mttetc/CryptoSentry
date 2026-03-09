@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServiceSupabaseClient } from '@/lib/supabase/server';
 import { createHmac } from 'node:crypto';
 
 function requireTelegramBotToken(): string {
@@ -93,7 +93,7 @@ export async function extractUserFromTelegramMessage(
 
 export async function getTelegramUser(userId: string): Promise<TelegramUser | null> {
   try {
-    const supabase = await createServerSupabaseClient();
+    const supabase = createServiceSupabaseClient();
 
     const { data, error } = await supabase
       .from('user_telegram_settings')

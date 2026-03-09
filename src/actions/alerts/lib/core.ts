@@ -2,26 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/api/auth';
-import {
-  priceAlertSchema,
-  socialAlertSchema,
-  updateSocialAlertSchema,
-  type AlertState,
-} from '../schemas';
-import { socialMonitor } from '@/lib/services/apify/social-monitor';
+import { socialAlertSchema, updateSocialAlertSchema, type AlertState } from '../schemas';
+import { socialMonitor } from '@/lib/services/twitter/social-monitor';
 import type { z } from 'zod';
 
 // --- Pure functions ---
-
-function buildPriceAlertRow(userId: string, validated: z.infer<typeof priceAlertSchema>) {
-  return {
-    user_id: userId,
-    symbol: validated.symbol,
-    target_price: validated.targetPrice,
-    condition: validated.condition,
-    active: true,
-  };
-}
 
 function buildSocialAlertRow(userId: string, validated: z.infer<typeof socialAlertSchema>) {
   return {
@@ -30,11 +15,14 @@ function buildSocialAlertRow(userId: string, validated: z.infer<typeof socialAle
     account: validated.account,
     keywords: validated.keywords,
     telegram_conversation_id: validated.telegramConversationId || null,
+    call_enabled: validated.callEnabled,
     is_active: true,
   };
 }
 
-function buildUpdateData(validated: z.infer<typeof updateSocialAlertSchema>): Record<string, unknown> {
+function buildUpdateData(
+  validated: z.infer<typeof updateSocialAlertSchema>
+): Record<string, unknown> {
   const data: Record<string, unknown> = {};
 
   if (validated.isActive !== undefined) {
@@ -57,38 +45,7 @@ function toActionError(error: unknown, fallback: string): AlertState {
   };
 }
 
-// --- Wrapper for external consumers ---
-
-export async function getAuthenticatedClient() {
-  return requireAuth();
-}
-
 // --- Server actions ---
-
-export async function createPriceAlert(
-  input: z.infer<typeof priceAlertSchema>
-): Promise<AlertState> {
-  try {
-    const { supabase, userId } = await requireAuth();
-    const validated = priceAlertSchema.parse(input);
-
-    const { error } = await supabase
-      .from('price_alerts')
-      .insert(buildPriceAlertRow(userId, validated))
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    revalidatePath('/dashboard');
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to create price alert:', error);
-    return toActionError(error, 'Failed to create price alert');
-  }
-}
 
 export async function createSocialAlert(
   input: z.infer<typeof socialAlertSchema>
@@ -96,17 +53,6 @@ export async function createSocialAlert(
   try {
     const { supabase, userId } = await requireAuth();
     const validated = socialAlertSchema.parse(input);
-
-    const { data: existingAlert } = await supabase
-      .from('social_alerts')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('account', validated.account)
-      .single();
-
-    if (existingAlert) {
-      return { success: false, error: 'You already have an alert for this account' };
-    }
 
     const { error } = await supabase
       .from('social_alerts')
@@ -194,4 +140,3 @@ export async function deleteSocialAlert(alertId: string): Promise<AlertState> {
     return toActionError(error, 'Failed to delete social alert');
   }
 }
-

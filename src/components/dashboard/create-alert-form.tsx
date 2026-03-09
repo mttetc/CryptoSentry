@@ -1,66 +1,68 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Twitter, Plus, X, Hash, MessageSquare, CheckCircle, AlertCircle } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Spinner } from '@/components/ui/spinner';
+import {
+  Field,
+  FieldLabel,
+  FieldError,
+  FieldDescription,
+} from '@/components/ui/field';
+import { Plus, X, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createSocialAlert } from '@/actions/alerts';
 
 const alertSchema = z.object({
   account: z.string().min(1, 'Account is required').max(50, 'Account name too long'),
   keywords: z
-    .array(z.string().min(1, 'Keyword cannot be empty'))
+    .array(z.object({ value: z.string().min(1, 'Keyword cannot be empty') }))
     .min(1, 'At least one keyword is required'),
-  telegramConversationId: z.string().min(1, 'Telegram conversation ID is required'),
+  telegramConversationId: z.string().optional(),
+  callEnabled: z.boolean(),
 });
 
 type AlertFormData = z.infer<typeof alertSchema>;
 
 interface CreateAlertFormProps {
   userId: string;
+  onAlertCreated?: () => void;
+  onClose?: () => void;
 }
 
-export function CreateAlertForm({ userId: _userId }: CreateAlertFormProps) {
-  const [keywords, setKeywords] = useState<string[]>([]);
+export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProps) {
   const [newKeyword, setNewKeyword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    setValue,
-    reset,
-  } = useForm<AlertFormData>({
+  const form = useForm<AlertFormData>({
     resolver: zodResolver(alertSchema),
     defaultValues: {
+      account: '',
       keywords: [],
       telegramConversationId: '',
+      callEnabled: true,
     },
   });
 
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'keywords',
+  });
+
   const addKeyword = () => {
-    if (newKeyword.trim() && !keywords.includes(newKeyword.trim())) {
-      const updatedKeywords = [...keywords, newKeyword.trim()];
-      setKeywords(updatedKeywords);
-      setValue('keywords', updatedKeywords);
+    const trimmed = newKeyword.trim();
+    if (trimmed && !fields.some((f) => f.value === trimmed)) {
+      append({ value: trimmed });
       setNewKeyword('');
     }
-  };
-
-  const removeKeyword = (keywordToRemove: string) => {
-    const updatedKeywords = keywords.filter((k) => k !== keywordToRemove);
-    setKeywords(updatedKeywords);
-    setValue('keywords', updatedKeywords);
   };
 
   const onSubmit = async (data: AlertFormData) => {
@@ -68,18 +70,17 @@ export function CreateAlertForm({ userId: _userId }: CreateAlertFormProps) {
     try {
       const result = await createSocialAlert({
         account: data.account,
-        keywords: data.keywords,
+        keywords: data.keywords.map((k) => k.value),
         platform: 'twitter',
         telegramConversationId: data.telegramConversationId,
+        callEnabled: data.callEnabled,
       });
 
       if (result.success) {
-        toast({
-          title: 'Alert Created!',
-          description: `Now monitoring @${data.account} for your keywords`,
-        });
-        reset();
-        setKeywords([]);
+        toast({ title: 'Alert created', description: `Now monitoring @${data.account}` });
+        form.reset();
+        onAlertCreated?.();
+        onClose?.();
       } else {
         toast({
           variant: 'destructive',
@@ -98,177 +99,141 @@ export function CreateAlertForm({ userId: _userId }: CreateAlertFormProps) {
     }
   };
 
+  const keywordsError = form.formState.errors.keywords;
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="space-y-4 text-center">
-        <div className="flex items-center justify-center gap-2">
-          <Twitter className="h-8 w-8 text-blue-500" />
-          <h2 className="text-3xl font-bold">Create X Alert</h2>
-        </div>
-        <p className="mx-auto max-w-2xl text-muted-foreground">
-          Monitor any X (Twitter) account and get instant Telegram alerts when they mention your
-          keywords
-        </p>
-      </div>
-
-      {/* Form */}
-      <Card className="mx-auto max-w-2xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            New Alert Configuration
-          </CardTitle>
-          <CardDescription>Fill in the details below to start monitoring</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* X Account */}
-            <div className="space-y-2">
-              <Label htmlFor="account" className="flex items-center gap-2">
-                <Twitter className="h-4 w-4" />X Account to Monitor
-              </Label>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">@</span>
-                <Input
-                  id="account"
-                  placeholder="elonmusk"
-                  {...register('account')}
-                  className={errors.account ? 'border-red-500' : ''}
-                />
-              </div>
-              {errors.account && <p className="text-sm text-red-500">{errors.account.message}</p>}
-              <p className="text-xs text-muted-foreground">
-                Enter the username without the @ symbol
-              </p>
-            </div>
-
-            <Separator />
-
-            {/* Keywords */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Hash className="h-4 w-4" />
-                Keywords to Monitor
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="bitcoin, crypto, ethereum..."
-                  value={newKeyword}
-                  onChange={(e) => setNewKeyword(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-                />
-                <Button type="button" onClick={addKeyword} variant="outline">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {errors.keywords && <p className="text-sm text-red-500">{errors.keywords.message}</p>}
-
-              {/* Keywords List */}
-              {keywords.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Selected Keywords:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {keywords.map((keyword) => (
-                      <Badge key={keyword} variant="secondary" className="flex items-center gap-1">
-                        {keyword}
-                        <button
-                          type="button"
-                          onClick={() => removeKeyword(keyword)}
-                          className="ml-1 hover:text-red-500"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Add keywords separated by commas or press Enter after each keyword
-              </p>
-            </div>
-
-            <Separator />
-
-            {/* Telegram Conversation ID */}
-            <div className="space-y-2">
-              <Label htmlFor="telegramConversationId" className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Telegram Conversation ID
-              </Label>
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+      {/* Account */}
+      <Controller
+        name="account"
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor={field.name}>Account</FieldLabel>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-muted-foreground">@</span>
               <Input
-                id="telegramConversationId"
-                placeholder="123456789"
-                {...register('telegramConversationId')}
-                className={errors.telegramConversationId ? 'border-red-500' : ''}
+                {...field}
+                id={field.name}
+                placeholder="elonmusk"
+                aria-invalid={fieldState.invalid}
               />
-              {errors.telegramConversationId && (
-                <p className="text-sm text-red-500">{errors.telegramConversationId.message}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                The chat ID where you want to receive alerts (get this from your bot setup)
-              </p>
             </div>
+            {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+          </Field>
+        )}
+      />
 
-            <Separator />
-
-            {/* Submit Button */}
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isSubmitting || keywords.length === 0}
+      {/* Keywords */}
+      <Field data-invalid={Boolean(keywordsError)}>
+        <FieldLabel>Keywords</FieldLabel>
+        <div className="flex gap-2">
+          <Input
+            placeholder="bitcoin, ethereum..."
+            value={newKeyword}
+            onChange={(e) => setNewKeyword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addKeyword();
+              }
+            }}
+          />
+          <Button type="button" onClick={addKeyword} variant="secondary" size="icon">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+        {keywordsError && <FieldError errors={[keywordsError]} />}
+        <AnimatePresence mode="popLayout">
+          {fields.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex flex-wrap gap-1.5 pt-1"
             >
-              {isSubmitting ? (
-                <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
-                  Creating Alert...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Create Alert
-                </>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              {fields.map((field, index) => (
+                <motion.div
+                  key={field.id}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Badge variant="default" className="font-mono">
+                    {field.value}
+                    <button
+                      type="button"
+                      onClick={() => remove(index)}
+                      className="ml-1.5 cursor-pointer opacity-60 hover:opacity-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Field>
 
-      {/* Help Section */}
-      <Card className="mx-auto max-w-2xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5" />
-            Need Help?
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <h4 className="font-medium">How to get your Telegram Conversation ID:</h4>
-            <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
-              <li>Start a conversation with your bot</li>
-              <li>Send any message to your bot</li>
-              <li>
-                Visit:{' '}
-                <code className="rounded bg-muted px-1">
-                  https://api.telegram.org/bot&lt;YOUR_BOT_TOKEN&gt;/getUpdates
-                </code>
-              </li>
-              <li>Find your chat ID in the response (it&apos;s a number)</li>
-            </ol>
-          </div>
+      {/* Telegram Conversation ID */}
+      <Controller
+        name="telegramConversationId"
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor={field.name}>
+              Telegram Conversation ID{' '}
+              <span className="text-muted-foreground font-normal">(optional)</span>
+            </FieldLabel>
+            <Input
+              {...field}
+              id={field.name}
+              placeholder="123456789"
+              aria-invalid={fieldState.invalid}
+            />
+            {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+            <FieldDescription>
+              Start a conversation with @CryptoSentryBot on Telegram, then paste the chat ID here.
+            </FieldDescription>
+          </Field>
+        )}
+      />
 
-          <div className="space-y-2">
-            <h4 className="font-medium">Tips for effective monitoring:</h4>
-            <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
-              <li>Use specific keywords related to your interests</li>
-              <li>Monitor multiple accounts for comprehensive coverage</li>
-              <li>Test your setup with a few keywords first</li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+      {/* Call Toggle */}
+      <Controller
+        name="callEnabled"
+        control={form.control}
+        render={({ field }) => (
+          <Field orientation="horizontal" className="rounded-lg border p-3.5">
+            <div className="flex items-center gap-3">
+              <Phone className="h-4 w-4 text-primary" />
+              <div>
+                <p className="text-sm font-medium">Telegram Call</p>
+                <p className="text-xs text-muted-foreground">Ring when keywords match</p>
+              </div>
+            </div>
+            <Switch
+              id={field.name}
+              checked={field.value}
+              onCheckedChange={field.onChange}
+            />
+          </Field>
+        )}
+      />
+
+      {/* Submit */}
+      <Button type="submit" className="w-full" disabled={isSubmitting || fields.length === 0}>
+        {isSubmitting ? (
+          <>
+            <Spinner size="sm" className="mr-2" />
+            Creating...
+          </>
+        ) : (
+          'Create Alert'
+        )}
+      </Button>
+    </form>
   );
 }

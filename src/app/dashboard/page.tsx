@@ -4,6 +4,7 @@ import { DashboardHeader } from '@/components/dashboard/dashboard-header';
 import { DashboardTitleRow } from '@/components/dashboard/dashboard-title-row';
 import { ModernDashboard } from '@/components/dashboard/modern-dashboard';
 import { TelegramQrConnect } from '@/components/telegram/telegram-qr-connect';
+import { redirect } from 'next/navigation';
 import { getOptionalSession } from '@/lib/api/auth';
 import { getSocialAlertsWithStats } from '@/actions/alerts/lib/queries';
 import { generateConnectToken } from '@/lib/telegram-connect-token';
@@ -82,7 +83,7 @@ export default async function DashboardPage() {
   const { session } = await getOptionalSession();
 
   if (!session?.user.id) {
-    return <div>Please log in to access the dashboard.</div>;
+    redirect('/auth');
   }
 
   const supabase = createServiceSupabaseClient();

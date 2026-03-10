@@ -4,6 +4,7 @@ import HeroSection from '@/components/landing/HeroSection';
 import StatsBar from '@/components/landing/StatsBar';
 import HowItWorks from '@/components/landing/HowItWorks';
 import FeatureShowcase from '@/components/landing/FeatureShowcase';
+import PricingSection from '@/components/landing/PricingSection';
 import BottomCTA from '@/components/landing/BottomCTA';
 import LandingFooter from '@/components/landing/LandingFooter';
 
@@ -22,6 +23,7 @@ export default function LandingPage() {
         <StatsBar />
         <HowItWorks />
         <FeatureShowcase />
+        <PricingSection />
         <BottomCTA />
       </main>
       <LandingFooter />

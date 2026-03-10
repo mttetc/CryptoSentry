@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/api/auth';
 import { socialAlertSchema, updateSocialAlertSchema, type AlertState } from '../schemas';
 import { socialMonitor } from '@/lib/services/twitter/social-monitor';
+import { checkAlertLimit } from '@/lib/config/plans';
 import type { z } from 'zod';
 
 // --- Pure functions ---
@@ -45,9 +46,7 @@ function toActionError(error: unknown, fallback: string): AlertState {
 
 // --- Server actions ---
 
-export async function validateXAccount(
-  account: string
-): Promise<{ exists: boolean }> {
+export async function validateXAccount(account: string): Promise<{ exists: boolean }> {
   await requireAuth();
 
   try {
@@ -66,6 +65,12 @@ export async function createSocialAlert(
   try {
     const { supabase, userId } = await requireAuth();
     const validated = socialAlertSchema.parse(input);
+
+    // Check plan limits before creating
+    const alertLimit = await checkAlertLimit(userId);
+    if (!alertLimit.allowed) {
+      return { success: false, error: alertLimit.error };
+    }
 
     const { error } = await supabase
       .from('social_alerts')

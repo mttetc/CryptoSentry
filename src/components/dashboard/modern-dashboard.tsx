@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { ActiveConversations } from './active-conversations';
 import { LiveFeed } from './live-feed';
+import { UsageBadge } from './usage-badge';
 import { useNewMatchAlertIds } from '@/hooks/use-new-matches';
 import { pluralWord } from '@/lib/utils/plural';
 import type { SocialAlertWithStats } from '@/types/alerts';
@@ -23,12 +24,19 @@ const fadeUp = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' as const } },
 };
 
+interface PlanInfo {
+  plan: string;
+  usage: number;
+  limit: number;
+}
+
 interface ModernDashboardProps {
   userId: string;
   initialAlerts?: SocialAlertWithStats[];
+  planInfo?: PlanInfo;
 }
 
-function HeaderBadges({ alerts }: { alerts: SocialAlertWithStats[] }) {
+function HeaderBadges({ alerts, planInfo }: { alerts: SocialAlertWithStats[]; planInfo?: PlanInfo }) {
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -44,9 +52,13 @@ function HeaderBadges({ alerts }: { alerts: SocialAlertWithStats[] }) {
 
   return createPortal(
     <>
-      <Badge variant="default">
-        {alerts.length} {pluralWord(alerts.length, 'alert')}
-      </Badge>
+      {planInfo ? (
+        <UsageBadge usage={planInfo.usage} limit={planInfo.limit} plan={planInfo.plan} />
+      ) : (
+        <Badge variant="default">
+          {alerts.length} {pluralWord(alerts.length, 'alert')}
+        </Badge>
+      )}
       <Badge variant="secondary">
         {totalTweets} {pluralWord(totalTweets, 'tweet')} today
       </Badge>
@@ -102,7 +114,7 @@ function AccountFilter({
   );
 }
 
-export function ModernDashboard({ userId, initialAlerts }: ModernDashboardProps) {
+export function ModernDashboard({ userId, initialAlerts, planInfo }: ModernDashboardProps) {
   const [alerts, setAlerts] = useState<SocialAlertWithStats[]>(initialAlerts ?? []);
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
   const flashAlertIds = useNewMatchAlertIds(alerts);
@@ -186,7 +198,7 @@ export function ModernDashboard({ userId, initialAlerts }: ModernDashboardProps)
   return (
     <>
       {/* Portal badges into header */}
-      <HeaderBadges alerts={alerts} />
+      <HeaderBadges alerts={alerts} planInfo={planInfo} />
 
       {/* Portal account filter into title row */}
       <AccountFilter

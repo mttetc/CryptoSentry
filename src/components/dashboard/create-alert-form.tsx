@@ -12,7 +12,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Field, FieldLabel, FieldError, FieldDescription } from '@/components/ui/field';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
-import { createSocialAlert } from '@/actions/alerts';
+import { createSocialAlert, validateXAccount } from '@/actions/alerts';
 
 const alertSchema = z.object({
   account: z.string().min(1, 'Account is required').max(50, 'Account name too long'),
@@ -62,6 +62,13 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
 
   const onSubmit = async (data: AlertFormData) => {
     const keywords = data.keywords.map((k) => k.value);
+
+    // Validate account exists on X
+    const { exists } = await validateXAccount(data.account);
+    if (!exists) {
+      form.setError('account', { message: 'This account does not exist on X' });
+      return;
+    }
 
     // Optimistic: close dialog and show alert immediately
     toast.success(`Now monitoring @${data.account}`);

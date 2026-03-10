@@ -7,64 +7,61 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
-  Phone,
-  Brain,
-  TrendingUp,
-  Wallet,
-  Bell,
-  Shield,
-  Layers,
-  Code,
-} from 'lucide-react';
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import { Phone } from 'lucide-react';
 
 const features = [
   {
-    icon: Phone,
-    title: 'Telegram Voice Calls',
-    description:
-      'Your phone actually rings. Cuts through Do Not Disturb, plays on headphones or car speakers. Under 30 seconds from tweet to call.',
+    id: 'ai',
+    label: 'AI analysis',
+    detail:
+      'Each matched tweet gets a bullish / bearish / neutral read and a one-line summary. Powered by GPT-4o-mini, fast enough to not slow down alerts, smart enough to filter the noise.',
   },
   {
-    icon: Brain,
-    title: 'AI Sentiment Analysis',
-    description:
-      'Every matched tweet is analyzed for sentiment and urgency. Know if a mention is bullish, bearish, or noise before you act.',
+    id: 'price',
+    label: 'Price alerts',
+    detail:
+      "Pick a coin, set a target price, pick a direction. CoinGecko data polled every 30 seconds. When it crosses, you know. Fires once then disarms so you don't get spammed.",
   },
   {
-    icon: TrendingUp,
-    title: 'Price Alerts',
-    description:
-      'Set price targets via CoinGecko data. Get notified when a coin crosses your threshold, above or below.',
+    id: 'whale',
+    label: 'Whale wallet tracking',
+    detail:
+      'Add an ETH or SOL address. Set a minimum USD threshold. When a transfer above that amount hits, you get the tx hash, the amount, and the token. Know when smart money moves before CT does.',
   },
   {
-    icon: Wallet,
-    title: 'Whale Wallet Tracking',
-    description:
-      'Monitor on-chain movements of known whale wallets. Get alerted on large transfers and accumulation patterns.',
+    id: 'channels',
+    label: 'Multi-channel delivery',
+    detail:
+      'Telegram calls are the default, but you can also route alerts to email, Discord webhooks, or SMS. Mix and match per alert type. Social to Telegram, price to Discord, whale to SMS.',
   },
   {
-    icon: Bell,
-    title: 'Multi-Channel Notifications',
-    description:
-      'Beyond Telegram calls: receive alerts via email, Discord webhooks, or SMS. Route different alert types to different channels.',
+    id: 'scores',
+    label: 'Influencer reliability scores',
+    detail:
+      "We snapshot the price when an influencer mentions a token, then check again at 1h and 24h. Over time, each influencer builds a track record per token. You see who actually calls winners vs. who's just loud.",
   },
   {
-    icon: Shield,
-    title: 'Influencer Reliability Scores',
-    description:
-      'Not all calls are equal. We track historical accuracy of influencers so you can weigh alerts accordingly.',
+    id: 'composite',
+    label: 'Composite alerts',
+    detail:
+      'Define multiple conditions ("influencer tweets about SOL" + "SOL price jumps 5%") and set a time window. The alert only fires when all conditions are met. Less noise, more signal.',
   },
   {
-    icon: Layers,
-    title: 'Combined Smart Alerts',
-    description:
-      'Create composite alerts that combine social + price + whale signals. Trigger only when multiple conditions align.',
+    id: 'portfolio',
+    label: 'Portfolio impact',
+    detail:
+      'Add your positions (token, amount, avg buy price). When an alert fires for a token you hold, the notification includes the dollar impact. Not just "SOL is up" but "your 50 SOL gained $320".',
   },
   {
-    icon: Code,
-    title: 'REST API Access',
-    description:
-      'Build your own integrations. Programmatic access to alerts, portfolio data, and notification management.',
+    id: 'api',
+    label: 'REST API',
+    detail:
+      'Plug CryptoSentry into your own tools. Fetch your alerts, triggers, and scores from any script or bot. No UI needed.',
   },
 ];
 
@@ -139,32 +136,29 @@ export default function FeatureShowcase() {
             </h2>
             <p className="text-muted-foreground mx-auto mt-4 max-w-md text-base leading-relaxed lg:mx-0">
               Notifications get buried or muted. A Telegram voice call rings through Do Not Disturb,
-              plays on your headphones or car speakers, and takes under 30 seconds from tweet to ring.
+              plays on your headphones or car speakers, and takes under 30 seconds from tweet to
+              ring.
             </p>
           </motion.div>
         </div>
 
-        {/* Feature grid */}
+        {/* Feature accordion */}
         <motion.div variants={fadeInUp} className="mt-24">
-          <h3 className="mb-10 text-center text-2xl font-semibold tracking-tight">
-            Everything you need for crypto intelligence
+          <h3 className="mb-8 text-center text-2xl font-semibold tracking-tight">
+            What else is in the box
           </h3>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {features.map((feature) => {
-              const Icon = feature.icon;
-              return (
-                <Card key={feature.title} className="border-border/50">
-                  <CardContent className="space-y-2 pt-6">
-                    <Icon className="h-6 w-6 text-primary" />
-                    <h4 className="font-semibold">{feature.title}</h4>
-                    <p className="text-sm leading-relaxed text-muted-foreground">
-                      {feature.description}
-                    </p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          <Accordion type="single" collapsible className="mx-auto max-w-2xl">
+            {features.map((f) => (
+              <AccordionItem key={f.id} value={f.id}>
+                <AccordionTrigger className="text-sm hover:no-underline">
+                  {f.label}
+                </AccordionTrigger>
+                <AccordionContent>
+                  <p className="text-muted-foreground leading-relaxed">{f.detail}</p>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </motion.div>
       </motion.div>
     </section>

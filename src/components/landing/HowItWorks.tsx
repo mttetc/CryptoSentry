@@ -8,12 +8,12 @@ const steps = [
   {
     num: '01',
     title: 'Connect Telegram',
-    desc: 'Open our Telegram bot and press Start. That\'s it, your account is linked.',
+    desc: "Open our Telegram bot and press Start. That's it, your account is linked.",
   },
   {
     num: '02',
     title: 'Pick accounts',
-    desc: 'Add any public X handle you want to watch — influencers, whales, insiders.',
+    desc: 'Add any public X handle you want to watch. Influencers, whales, insiders.',
   },
   {
     num: '03',
@@ -37,7 +37,10 @@ export default function HowItWorks() {
         viewport={{ once: true, amount: 0.3 }}
         className="mx-auto max-w-5xl px-6"
       >
-        <motion.p variants={fadeInUp} className="mb-10 text-center font-mono text-sm uppercase tracking-widest text-muted-foreground">
+        <motion.p
+          variants={fadeInUp}
+          className="text-muted-foreground mb-10 text-center font-mono text-sm tracking-widest uppercase"
+        >
           How it works
         </motion.p>
         <div className="grid gap-x-12 gap-y-10 md:grid-cols-2 lg:grid-cols-4">
@@ -47,7 +50,7 @@ export default function HowItWorks() {
                 {step.num}
               </Badge>
               <h3 className="mt-3 text-lg font-semibold">{step.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.desc}</p>
+              <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{step.desc}</p>
             </motion.div>
           ))}
         </div>

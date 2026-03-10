@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server';
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
-import { verifyWebhookSignature } from '@/actions/messaging/providers/telegram';
 import {
-  extractUserFromTelegramMessage,
   sendTelegramMessage,
   answerCallbackQuery,
 } from '@/actions/messaging/providers/telegram/telegram-utils';
+import { verifyConnectToken } from '@/lib/telegram-connect-token';
+
+const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET ?? 'cryptosentry-webhook-secret';
 
 // --- Pure functions ---
 
-function parseConnectUserId(text: string): string | null {
-  if (!text.startsWith('/start connect_')) {
+function parseConnectToken(text: string): string | null {
+  if (!text.startsWith('/start ')) {
     return null;
   }
-  return text.split('connect_')[1] || null;
+  return text.slice('/start '.length).trim() || null;
 }
 
 // --- Single-responsibility I/O ---
@@ -59,21 +60,13 @@ async function handleConnectCommand(appUserId: string, telegramChatId: string): 
 
 export async function POST(request: Request) {
   try {
-    const signature = request.headers.get('x-telegram-bot-api-secret-token');
-    const timestamp = request.headers.get('x-telegram-bot-api-timestamp');
-
-    if (!signature || !timestamp) {
-      return NextResponse.json({ error: 'Missing signature or timestamp' }, { status: 400 });
+    // Verify secret token (set during webhook registration)
+    const secretToken = request.headers.get('x-telegram-bot-api-secret-token');
+    if (secretToken !== WEBHOOK_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const payload = await request.text();
-    const isValid = await verifyWebhookSignature(payload, signature, timestamp);
-
-    if (!isValid) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
-
-    const update = JSON.parse(payload);
+    const update = await request.json();
 
     if (update.callback_query) {
       await handleCallbackQuery(update.callback_query);
@@ -81,18 +74,23 @@ export async function POST(request: Request) {
     }
 
     const message = update.message;
-    if (!message) {
-      return NextResponse.json({ error: 'No message in update' }, { status: 400 });
+    if (!message?.from?.id) {
+      return NextResponse.json({ success: true }); // Ignore non-message updates
     }
 
-    const userInfo = await extractUserFromTelegramMessage(message);
-    if (!userInfo) {
-      return NextResponse.json({ error: 'Could not extract user info' }, { status: 400 });
-    }
+    const chatId = String(message.chat.id);
+    const connectToken = parseConnectToken(message.text || '');
 
-    const connectUserId = parseConnectUserId(message.text || '');
-    if (connectUserId) {
-      await handleConnectCommand(connectUserId, userInfo.userId);
+    if (connectToken) {
+      const { userId: appUserId, valid } = verifyConnectToken(connectToken);
+      if (!valid) {
+        await sendTelegramMessage(
+          chatId,
+          'This connect link is invalid. Please scan a new QR code from your dashboard.'
+        );
+        return NextResponse.json({ success: true });
+      }
+      await handleConnectCommand(appUserId, chatId);
     }
 
     return NextResponse.json({ success: true });

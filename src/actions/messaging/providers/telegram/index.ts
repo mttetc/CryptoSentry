@@ -4,7 +4,6 @@ export {
   sendTelegramMessage,
   answerCallbackQuery,
   extractUserFromTelegramMessage,
-  verifyWebhookSignature,
   getTelegramUser,
   TELEGRAM_API_BASE,
 } from './telegram-utils';

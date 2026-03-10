@@ -4,6 +4,7 @@ import { useState, useDeferredValue } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { SpotlightCard } from '@/components/ui/spotlight';
 import {
@@ -13,7 +14,6 @@ import {
   Repeat2,
   MessageCircle,
   Phone,
-  PhoneCall,
   Activity,
   Trash2,
   Pause,
@@ -102,6 +102,7 @@ function CompactAlertCard({
 }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
+  const [isTogglingCall, setIsTogglingCall] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const now = useNow();
 
@@ -136,6 +137,23 @@ function CompactAlertCard({
     }
   };
 
+  const handleToggleCall = async () => {
+    setIsTogglingCall(true);
+    try {
+      const result = await updateSocialAlert({
+        id: alert.id,
+        callEnabled: !alert.call_enabled,
+      });
+      if (result.success) {
+        onToggle?.(alert.id);
+      }
+    } catch {
+      // Silent
+    } finally {
+      setIsTogglingCall(false);
+    }
+  };
+
   const matchCount = alert.recentTweets.length;
 
   return (
@@ -162,15 +180,6 @@ function CompactAlertCard({
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              {alert.telegram_conversation_id && (
-                <Badge variant="outline">
-                  {alert.call_enabled ? (
-                    <PhoneCall className="h-3 w-3" />
-                  ) : (
-                    <Phone className="h-3 w-3" />
-                  )}
-                </Badge>
-              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -222,7 +231,21 @@ function CompactAlertCard({
             </div>
           </div>
 
-          {/* Row 3: Expandable recent matches */}
+          {/* Row 3: Call toggle */}
+          <div className="mt-2.5 flex items-center justify-between rounded-md border px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Phone className="text-primary h-3.5 w-3.5" />
+              <span className="text-xs font-medium">Telegram Call</span>
+            </div>
+            <Switch
+              checked={alert.call_enabled}
+              onCheckedChange={handleToggleCall}
+              disabled={isTogglingCall}
+              aria-label="Toggle Telegram call"
+            />
+          </div>
+
+          {/* Row 4: Expandable recent matches */}
           {matchCount > 0 && (
             <div className="mt-2">
               <button

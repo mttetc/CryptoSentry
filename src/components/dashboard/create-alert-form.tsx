@@ -8,10 +8,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { Field, FieldLabel, FieldError, FieldDescription } from '@/components/ui/field';
-import { X, Phone } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createSocialAlert } from '@/actions/alerts';
 
@@ -20,8 +19,6 @@ const alertSchema = z.object({
   keywords: z
     .array(z.object({ value: z.string().min(1, 'Keyword cannot be empty') }))
     .min(1, 'At least one keyword is required'),
-  telegramConversationId: z.string().optional(),
-  callEnabled: z.boolean(),
 });
 
 type AlertFormData = z.infer<typeof alertSchema>;
@@ -43,8 +40,6 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
     defaultValues: {
       account: '',
       keywords: [],
-      telegramConversationId: '',
-      callEnabled: true,
     },
   });
 
@@ -68,8 +63,6 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
         account: data.account,
         keywords: data.keywords.map((k) => k.value),
         platform: 'twitter',
-        telegramConversationId: data.telegramConversationId,
-        callEnabled: data.callEnabled,
       });
 
       if (result.success) {
@@ -177,48 +170,6 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
         {keywordsError && <FieldError errors={[keywordsError]} />}
         <FieldDescription>Press space or comma to add a keyword</FieldDescription>
       </Field>
-
-      {/* Telegram Conversation ID */}
-      <Controller
-        name="telegramConversationId"
-        control={form.control}
-        render={({ field, fieldState }) => (
-          <Field data-invalid={fieldState.invalid}>
-            <FieldLabel htmlFor={field.name}>
-              Telegram Conversation ID{' '}
-              <span className="text-muted-foreground font-normal">(optional)</span>
-            </FieldLabel>
-            <Input
-              {...field}
-              id={field.name}
-              placeholder="123456789"
-              aria-invalid={fieldState.invalid}
-            />
-            {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-            <FieldDescription>
-              Start a conversation with @CryptoSentryBot on Telegram, then paste the chat ID here.
-            </FieldDescription>
-          </Field>
-        )}
-      />
-
-      {/* Call Toggle */}
-      <Controller
-        name="callEnabled"
-        control={form.control}
-        render={({ field }) => (
-          <Field orientation="horizontal" className="justify-between rounded-lg border p-3.5">
-            <div className="flex items-center gap-3">
-              <Phone className="text-primary h-4 w-4" />
-              <div>
-                <p className="text-sm font-medium">Telegram Call</p>
-                <p className="text-muted-foreground text-xs">Ring when keywords match</p>
-              </div>
-            </div>
-            <Switch id={field.name} checked={field.value} onCheckedChange={field.onChange} />
-          </Field>
-        )}
-      />
 
       {/* Submit */}
       <Button type="submit" className="w-full" disabled={isSubmitting || fields.length === 0}>

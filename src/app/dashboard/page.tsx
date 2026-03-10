@@ -3,8 +3,10 @@ import { DashboardShell } from '@/components/dashboard/dashboard-shell';
 import { DashboardHeader } from '@/components/dashboard/dashboard-header';
 import { DashboardTitleRow } from '@/components/dashboard/dashboard-title-row';
 import { ModernDashboard } from '@/components/dashboard/modern-dashboard';
+import { TelegramQrConnect } from '@/components/telegram/telegram-qr-connect';
 import { getOptionalSession } from '@/lib/api/auth';
 import { getSocialAlertsWithStats } from '@/actions/alerts/lib/queries';
+import { generateConnectToken } from '@/lib/telegram-connect-token';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +89,9 @@ export default async function DashboardPage() {
       <div className="space-y-6">
         <DashboardHeader userEmail={session.user.email} />
         <DashboardTitleRow userId={session.user.id} />
+        <TelegramQrConnect
+          connectLink={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'CryptoSentryBot'}?start=${generateConnectToken(session.user.id)}`}
+        />
         <Suspense fallback={<ContentSkeleton />}>
           <AlertsContent userId={session.user.id} />
         </Suspense>

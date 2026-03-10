@@ -2,6 +2,7 @@
 const nextConfig = {
   reactCompiler: true,
   turbopack: {},
+  allowedDevOrigins: ['192.168.1.90'],
   async headers() {
     return [
       {

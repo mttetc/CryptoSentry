@@ -1,13 +1,14 @@
 'use client';
 
 import { CreateAlertDialog } from './create-alert-dialog';
+import type { OptimisticAlertData } from './create-alert-form';
 
 interface DashboardTitleRowProps {
   userId: string;
 }
 
-function handleAlertCreated() {
-  window.dispatchEvent(new CustomEvent('alert-created'));
+function handleAlertCreated(data: OptimisticAlertData) {
+  window.dispatchEvent(new CustomEvent('alert-created', { detail: data }));
 }
 
 export function DashboardTitleRow({ userId }: DashboardTitleRowProps) {

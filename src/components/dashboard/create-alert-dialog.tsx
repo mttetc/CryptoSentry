@@ -11,11 +11,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { CreateAlertForm } from './create-alert-form';
+import { CreateAlertForm, type OptimisticAlertData } from './create-alert-form';
 
 interface CreateAlertDialogProps {
   userId: string;
-  onAlertCreated?: () => void;
+  onAlertCreated?: (data: OptimisticAlertData) => void;
 }
 
 export function CreateAlertDialog({ userId, onAlertCreated }: CreateAlertDialogProps) {
@@ -32,8 +32,8 @@ export function CreateAlertDialog({ userId, onAlertCreated }: CreateAlertDialogP
     };
   }, []);
 
-  const handleCreated = () => {
-    onAlertCreated?.();
+  const handleCreated = (data: OptimisticAlertData) => {
+    onAlertCreated?.(data);
     setOpen(false);
   };
 

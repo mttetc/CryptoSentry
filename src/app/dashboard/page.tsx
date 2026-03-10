@@ -7,6 +7,7 @@ import { TelegramQrConnect } from '@/components/telegram/telegram-qr-connect';
 import { getOptionalSession } from '@/lib/api/auth';
 import { getSocialAlertsWithStats } from '@/actions/alerts/lib/queries';
 import { generateConnectToken } from '@/lib/telegram-connect-token';
+import { createServiceSupabaseClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,6 +85,15 @@ export default async function DashboardPage() {
     return <div>Please log in to access the dashboard.</div>;
   }
 
+  const supabase = createServiceSupabaseClient();
+  const { data: telegramSettings } = await supabase
+    .from('user_telegram_settings')
+    .select('status')
+    .eq('user_id', session.user.id)
+    .single();
+
+  const isTelegramConnected = telegramSettings?.status === 'connected';
+
   return (
     <DashboardShell>
       <div className="space-y-6">
@@ -91,6 +101,7 @@ export default async function DashboardPage() {
         <DashboardTitleRow userId={session.user.id} />
         <TelegramQrConnect
           connectLink={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'CryptoSentryBot'}?start=${generateConnectToken(session.user.id)}`}
+          isConnected={isTelegramConnected}
         />
         <Suspense fallback={<ContentSkeleton />}>
           <AlertsContent userId={session.user.id} />

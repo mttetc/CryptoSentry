@@ -23,9 +23,15 @@ const alertSchema = z.object({
 
 type AlertFormData = z.infer<typeof alertSchema>;
 
+export interface OptimisticAlertData {
+  account: string;
+  keywords: string[];
+  platform: string;
+}
+
 interface CreateAlertFormProps {
   userId: string;
-  onAlertCreated?: () => void;
+  onAlertCreated?: (data: OptimisticAlertData) => void;
   onClose?: () => void;
 }
 
@@ -57,20 +63,23 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
   };
 
   const onSubmit = async (data: AlertFormData) => {
-    setIsSubmitting(true);
+    const keywords = data.keywords.map((k) => k.value);
+
+    // Optimistic: close dialog and show alert immediately
+    toast({ title: 'Alert created', description: `Now monitoring @${data.account}` });
+    form.reset();
+    onAlertCreated?.({ account: data.account, keywords, platform: 'twitter' });
+    onClose?.();
+
+    // Fire and forget — server action + revalidation handles reconciliation
     try {
       const result = await createSocialAlert({
         account: data.account,
-        keywords: data.keywords.map((k) => k.value),
+        keywords,
         platform: 'twitter',
       });
 
-      if (result.success) {
-        toast({ title: 'Alert created', description: `Now monitoring @${data.account}` });
-        form.reset();
-        onAlertCreated?.();
-        onClose?.();
-      } else {
+      if (!result.success) {
         toast({
           variant: 'destructive',
           title: 'Error',
@@ -83,8 +92,6 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
         title: 'Error',
         description: 'Failed to create alert. Please try again.',
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

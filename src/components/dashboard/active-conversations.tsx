@@ -2,6 +2,17 @@
 
 import { useState, useDeferredValue } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -24,6 +35,7 @@ import {
 import { deleteSocialAlert, updateSocialAlert } from '@/actions/alerts';
 import { formatDistance } from 'date-fns';
 import { useNow } from '@/hooks/use-now';
+import { useToast } from '@/hooks/use-toast';
 import { plural } from '@/lib/utils/plural';
 import type { SocialAlertWithStats, AlertTweet } from '@/types/alerts';
 
@@ -100,55 +112,80 @@ function CompactAlertCard({
   onDelete?: (id: string) => void;
   onToggle?: (id: string) => void;
 }) {
-  const [isDeleting, setIsDeleting] = useState(false);
+  const isOptimistic = alert.id.startsWith('optimistic-');
   const [isToggling, setIsToggling] = useState(false);
+  const [optimisticCallEnabled, setOptimisticCallEnabled] = useState(alert.call_enabled);
   const [isTogglingCall, setIsTogglingCall] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const now = useNow();
+  const { toast } = useToast();
 
   const handleDelete = async () => {
-    setIsDeleting(true);
+    onDelete?.(alert.id); // Optimistic: remove immediately
+    toast({ title: 'Alert deleted', description: `@${alert.account} removed` });
     try {
       const result = await deleteSocialAlert(alert.id);
-      if (result.success) {
-        onDelete?.(alert.id);
+      if (!result.success) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete alert' });
       }
     } catch {
-      // Silent
-    } finally {
-      setIsDeleting(false);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete alert' });
     }
   };
 
   const handleToggle = async () => {
+    const wasActive = alert.is_active;
+    onToggle?.(alert.id); // Optimistic
     setIsToggling(true);
+    toast({
+      title: wasActive ? 'Alert paused' : 'Alert resumed',
+      description: `@${alert.account}`,
+    });
     try {
       const result = await updateSocialAlert({
         id: alert.id,
-        isActive: !alert.is_active,
+        isActive: !wasActive,
       });
-      if (result.success) {
-        onToggle?.(alert.id);
+      if (!result.success) {
+        onToggle?.(alert.id); // Revert
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to update alert' });
       }
     } catch {
-      // Silent
+      onToggle?.(alert.id); // Revert
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to update alert' });
     } finally {
       setIsToggling(false);
     }
   };
 
   const handleToggleCall = async () => {
+    const prev = optimisticCallEnabled;
+    setOptimisticCallEnabled(!prev); // Optimistic
     setIsTogglingCall(true);
+    toast({
+      title: prev ? 'Telegram call disabled' : 'Telegram call enabled',
+      description: `@${alert.account}`,
+    });
     try {
       const result = await updateSocialAlert({
         id: alert.id,
-        callEnabled: !alert.call_enabled,
+        callEnabled: !prev,
       });
-      if (result.success) {
-        onToggle?.(alert.id);
+      if (!result.success) {
+        setOptimisticCallEnabled(prev); // Revert
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to update call setting',
+        });
       }
     } catch {
-      // Silent
+      setOptimisticCallEnabled(prev); // Revert
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to update call setting',
+      });
     } finally {
       setIsTogglingCall(false);
     }
@@ -184,7 +221,7 @@ function CompactAlertCard({
                 variant="ghost"
                 size="icon"
                 onClick={handleToggle}
-                disabled={isToggling}
+                disabled={isToggling || isOptimistic}
                 aria-label={alert.is_active ? 'Pause alert' : 'Resume alert'}
                 className="h-7 w-7"
               >
@@ -198,16 +235,32 @@ function CompactAlertCard({
                   return <Play className="h-3.5 w-3.5" />;
                 })()}
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleDelete}
-                disabled={isDeleting}
-                aria-label="Delete alert"
-                className="text-muted-foreground hover:text-destructive h-7 w-7"
-              >
-                {isDeleting ? <Spinner size="sm" /> : <Trash2 className="h-3.5 w-3.5" />}
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={isOptimistic}
+                    aria-label="Delete alert"
+                    className="text-muted-foreground hover:text-destructive h-7 w-7"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete alert?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete the alert for @{alert.account}. This action
+                      cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
 
@@ -238,9 +291,9 @@ function CompactAlertCard({
               <span className="text-xs font-medium">Telegram Call</span>
             </div>
             <Switch
-              checked={alert.call_enabled}
+              checked={optimisticCallEnabled}
               onCheckedChange={handleToggleCall}
-              disabled={isTogglingCall}
+              disabled={isTogglingCall || isOptimistic}
               aria-label="Toggle Telegram call"
             />
           </div>
@@ -279,7 +332,7 @@ function CompactAlertCard({
 
           {/* Incoming call toast */}
           <AnimatePresence>
-            {isFlashing && alert.call_enabled && (
+            {isFlashing && optimisticCallEnabled && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}

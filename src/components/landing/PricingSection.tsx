@@ -12,7 +12,12 @@ const plans = [
     name: 'Free',
     price: '0',
     description: 'Get started with basic monitoring',
-    features: ['2 alerts', 'Unlimited keywords', 'Telegram voice calls', '<30s tweet-to-call'],
+    features: [
+      '2 alerts (social + price)',
+      'Telegram notifications',
+      'AI sentiment analysis',
+      '<30s tweet-to-call',
+    ],
     cta: 'Get started',
     href: '/auth?register=true',
   },
@@ -21,11 +26,27 @@ const plans = [
     price: '9',
     description: 'For serious traders who need more coverage',
     features: [
-      '10 alerts',
-      'Unlimited keywords',
-      'Telegram voice calls',
-      '<30s tweet-to-call',
+      '10 alerts (social + price)',
+      '5 whale wallet alerts',
+      'All notification channels',
       'Priority polling',
+      'Influencer reliability scores',
+    ],
+    cta: 'Coming soon',
+    href: '/auth?register=true',
+    highlighted: true,
+  },
+  {
+    name: 'Premium',
+    price: '29',
+    description: 'Full-stack crypto intelligence',
+    features: [
+      '50 alerts (social + price)',
+      '20 whale wallet alerts',
+      'All notification channels',
+      'Composite & conditional alerts',
+      'Portfolio impact tracking',
+      'REST API access',
     ],
     cta: 'Coming soon',
     href: '/auth?register=true',
@@ -49,10 +70,16 @@ export default function PricingSection() {
           </p>
         </motion.div>
 
-        <div className="mx-auto mt-12 grid max-w-2xl items-stretch gap-6 md:grid-cols-2">
+        <div className="mx-auto mt-12 grid max-w-4xl items-stretch gap-6 md:grid-cols-3">
           {plans.map((plan) => (
             <motion.div key={plan.name} variants={fadeInUp}>
-              <Card className="flex h-full flex-col">
+              <Card
+                className={
+                  'highlighted' in plan && plan.highlighted
+                    ? 'flex h-full flex-col border-primary/50 ring-1 ring-primary/20'
+                    : 'flex h-full flex-col'
+                }
+              >
                 <CardHeader>
                   <CardTitle className="text-lg">{plan.name}</CardTitle>
                   <div className="mt-2 flex items-baseline gap-1">

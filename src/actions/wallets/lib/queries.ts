@@ -1,17 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-
-export interface WalletAlertWithStats {
-  id: string;
-  user_id: string;
-  address: string;
-  label: string | null;
-  chain: 'eth' | 'sol';
-  min_value_usd: number;
-  is_active: boolean;
-  created_at: string;
-  triggerCount: number;
-  lastActivity: string;
-}
+import type { WalletAlertWithStats } from '@/types/alerts';
 
 export async function getWalletAlertsWithStats(
   supabase: SupabaseClient,

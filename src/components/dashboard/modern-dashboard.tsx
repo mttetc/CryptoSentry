@@ -12,12 +12,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ActiveConversations } from './active-conversations';
 import { LiveFeed } from './live-feed';
+import { PriceAlertsList } from './price-alerts-list';
+import { WalletAlertsList } from './wallet-alerts-list';
+import { CreatePriceAlertDialog } from './create-price-alert-dialog';
+import { CreateWalletAlertDialog } from './create-wallet-alert-dialog';
 import { UsageBadge } from './usage-badge';
 import { useNewMatchAlertIds } from '@/hooks/use-new-matches';
 import { pluralWord } from '@/lib/utils/plural';
-import type { SocialAlertWithStats } from '@/types/alerts';
+import type {
+  SocialAlertWithStats,
+  PriceAlertWithStats,
+  WalletAlertWithStats,
+} from '@/types/alerts';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -33,18 +42,30 @@ interface PlanInfo {
 interface ModernDashboardProps {
   userId: string;
   initialAlerts?: SocialAlertWithStats[];
+  initialPriceAlerts?: PriceAlertWithStats[];
+  initialWalletAlerts?: WalletAlertWithStats[];
   planInfo?: PlanInfo;
 }
 
-function HeaderBadges({ alerts, planInfo }: { alerts: SocialAlertWithStats[]; planInfo?: PlanInfo }) {
+function HeaderBadges({
+  alerts,
+  priceAlertCount,
+  walletAlertCount,
+  planInfo,
+}: {
+  alerts: SocialAlertWithStats[];
+  priceAlertCount: number;
+  walletAlertCount: number;
+  planInfo?: PlanInfo;
+}) {
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     setTarget(document.querySelector<HTMLElement>('#dashboard-header-badges'));
   }, []);
 
+  const totalAlerts = alerts.length + priceAlertCount + walletAlertCount;
   const totalTweets = alerts.reduce((sum, a) => sum + a.tweetCount, 0);
-  const totalKeywords = alerts.reduce((sum, a) => sum + a.keywords.length, 0);
 
   if (!target) {
     return null;
@@ -56,14 +77,11 @@ function HeaderBadges({ alerts, planInfo }: { alerts: SocialAlertWithStats[]; pl
         <UsageBadge usage={planInfo.usage} limit={planInfo.limit} plan={planInfo.plan} />
       ) : (
         <Badge variant="default">
-          {alerts.length} {pluralWord(alerts.length, 'alert')}
+          {totalAlerts} {pluralWord(totalAlerts, 'alert')}
         </Badge>
       )}
       <Badge variant="secondary">
         {totalTweets} {pluralWord(totalTweets, 'tweet')} today
-      </Badge>
-      <Badge variant="secondary">
-        {totalKeywords} {pluralWord(totalKeywords, 'keyword')}
       </Badge>
     </>,
     target
@@ -114,8 +132,18 @@ function AccountFilter({
   );
 }
 
-export function ModernDashboard({ userId, initialAlerts, planInfo }: ModernDashboardProps) {
+export function ModernDashboard({
+  userId,
+  initialAlerts,
+  initialPriceAlerts,
+  initialWalletAlerts,
+  planInfo,
+}: ModernDashboardProps) {
   const [alerts, setAlerts] = useState<SocialAlertWithStats[]>(initialAlerts ?? []);
+  const [priceAlerts, setPriceAlerts] = useState<PriceAlertWithStats[]>(initialPriceAlerts ?? []);
+  const [walletAlerts, setWalletAlerts] = useState<WalletAlertWithStats[]>(
+    initialWalletAlerts ?? []
+  );
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
   const flashAlertIds = useNewMatchAlertIds(alerts);
 
@@ -133,6 +161,19 @@ export function ModernDashboard({ userId, initialAlerts, planInfo }: ModernDashb
       }
       const data = await response.json();
       setAlerts(data.alerts || []);
+    } catch {
+      // Silent
+    }
+  };
+
+  const refreshPriceAlerts = async () => {
+    try {
+      const response = await fetch('/api/alerts/price');
+      if (!response.ok) {
+        return;
+      }
+      const data = await response.json();
+      setPriceAlerts(data.alerts || []);
     } catch {
       // Silent
     }
@@ -169,13 +210,16 @@ export function ModernDashboard({ userId, initialAlerts, planInfo }: ModernDashb
         ]);
       }
     };
-    // Reconcile when the server action finishes (fired by create-alert-form)
+    // Reconcile when the server action finishes
     const syncHandler = () => refreshAlerts();
+    const priceSyncHandler = () => refreshPriceAlerts();
     window.addEventListener('alert-created', handler);
     window.addEventListener('alert-synced', syncHandler);
+    window.addEventListener('price-alert-synced', priceSyncHandler);
     return () => {
       window.removeEventListener('alert-created', handler);
       window.removeEventListener('alert-synced', syncHandler);
+      window.removeEventListener('price-alert-synced', priceSyncHandler);
     };
   }, []);
 
@@ -191,6 +235,19 @@ export function ModernDashboard({ userId, initialAlerts, planInfo }: ModernDashb
     };
   }, [hasActiveAlerts, polling]);
 
+  // Poll price alerts when there are active ones
+  const hasActivePriceAlerts = priceAlerts.some((a) => a.is_active);
+
+  useEffect(() => {
+    if (!hasActivePriceAlerts || !polling) {
+      return;
+    }
+    const interval = setInterval(refreshPriceAlerts, 60_000);
+    return () => {
+      clearInterval(interval);
+    };
+  }, [hasActivePriceAlerts, polling]);
+
   const accounts = [...new Set(alerts.map((a) => a.account))];
   const filteredAlerts =
     selectedAccount === 'all' ? alerts : alerts.filter((a) => a.account === selectedAccount);
@@ -198,7 +255,12 @@ export function ModernDashboard({ userId, initialAlerts, planInfo }: ModernDashb
   return (
     <>
       {/* Portal badges into header */}
-      <HeaderBadges alerts={alerts} planInfo={planInfo} />
+      <HeaderBadges
+        alerts={alerts}
+        priceAlertCount={priceAlerts.length}
+        walletAlertCount={walletAlerts.length}
+        planInfo={planInfo}
+      />
 
       {/* Portal account filter into title row */}
       <AccountFilter
@@ -207,7 +269,7 @@ export function ModernDashboard({ userId, initialAlerts, planInfo }: ModernDashb
         onSelect={setSelectedAccount}
       />
 
-      {/* Two-column layout: Alerts left, Feed right */}
+      {/* Two-column layout: Tabs left, Feed right */}
       <motion.div
         initial="hidden"
         animate="visible"
@@ -215,19 +277,93 @@ export function ModernDashboard({ userId, initialAlerts, planInfo }: ModernDashb
         className="flex flex-col gap-4 lg:flex-row"
       >
         <div className="min-w-0 flex-1">
-          <ActiveConversations
-            userId={userId}
-            alerts={filteredAlerts}
-            onDeleteAlert={(id) => {
-              setAlerts((prev) => prev.filter((a) => a.id !== id));
-            }}
-            onToggleAlert={(id) => {
-              setAlerts((prev) =>
-                prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
-              );
-            }}
-            flashAlertIds={flashAlertIds}
-          />
+          <Tabs defaultValue="social" className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="social">
+                Social
+                {alerts.length > 0 && (
+                  <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
+                    {alerts.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="price">
+                Price
+                {priceAlerts.length > 0 && (
+                  <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
+                    {priceAlerts.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="whale">
+                Whale
+                {walletAlerts.length > 0 && (
+                  <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
+                    {walletAlerts.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="advanced">Advanced</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="social">
+              <ActiveConversations
+                userId={userId}
+                alerts={filteredAlerts}
+                onDeleteAlert={(id) => {
+                  setAlerts((prev) => prev.filter((a) => a.id !== id));
+                }}
+                onToggleAlert={(id) => {
+                  setAlerts((prev) =>
+                    prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
+                  );
+                }}
+                flashAlertIds={flashAlertIds}
+              />
+            </TabsContent>
+
+            <TabsContent value="price">
+              <div className="mb-3 flex items-center justify-end">
+                <CreatePriceAlertDialog />
+              </div>
+              <PriceAlertsList
+                alerts={priceAlerts}
+                onDelete={(id) => {
+                  setPriceAlerts((prev) => prev.filter((a) => a.id !== id));
+                }}
+                onToggle={(id) => {
+                  setPriceAlerts((prev) =>
+                    prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
+                  );
+                }}
+              />
+            </TabsContent>
+
+            <TabsContent value="whale">
+              <div className="mb-3 flex items-center justify-end">
+                <CreateWalletAlertDialog />
+              </div>
+              <WalletAlertsList
+                alerts={walletAlerts}
+                onDelete={(id) => {
+                  setWalletAlerts((prev) => prev.filter((a) => a.id !== id));
+                }}
+                onToggle={(id) => {
+                  setWalletAlerts((prev) =>
+                    prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
+                  );
+                }}
+              />
+            </TabsContent>
+
+            <TabsContent value="advanced">
+              <div className="rounded-xl border border-dashed p-12 text-center">
+                <p className="text-muted-foreground text-sm">
+                  Composite and conditional alerts coming with Premium plan.
+                </p>
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
         <div className="lg:sticky lg:top-20 lg:w-[350px] lg:shrink-0 lg:self-start">
           <LiveFeed alerts={alerts} flashAlertIds={flashAlertIds} />

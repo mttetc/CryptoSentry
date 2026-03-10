@@ -1,16 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-
-export interface PriceAlertWithStats {
-  id: string;
-  user_id: string;
-  symbol: string;
-  coingecko_id: string;
-  target_price: number;
-  direction: 'above' | 'below';
-  is_active: boolean;
-  triggered_at: string | null;
-  created_at: string;
-}
+import type { PriceAlertWithStats } from '@/types/alerts';
 
 export async function getPriceAlertsWithStats(
   supabase: SupabaseClient,

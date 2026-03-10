@@ -24,15 +24,17 @@ export default function HeroSection() {
             variants={fadeInUp}
             className="text-4xl font-semibold leading-tight tracking-tight md:text-5xl md:leading-tight"
           >
-            Your phone rings
+            Crypto intelligence
             <br />
-            <span className="text-primary">before Twitter loads.</span>
+            <span className="text-primary">that calls you first.</span>
           </motion.h1>
           <motion.p
             variants={fadeInUp}
             className="mt-6 text-lg leading-relaxed text-muted-foreground"
           >
-            CryptoSentry watches crypto influencers on X and <strong className="text-foreground">calls you on Telegram</strong> when they mention a token you track. Your phone actually rings.
+            CryptoSentry monitors influencers, prices, and whale wallets &mdash; then{' '}
+            <strong className="text-foreground">calls you on Telegram</strong> before the market
+            moves. AI-powered sentiment analysis, multi-channel alerts, under 30 seconds.
           </motion.p>
           <motion.div variants={fadeInUp} className="mt-8 flex items-center gap-4">
             <Button asChild size="lg">

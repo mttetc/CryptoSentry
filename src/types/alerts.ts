@@ -45,4 +45,30 @@ export interface SocialAlertWithStats {
   tweetCount: number;
   lastActivity: string;
   recentTweets: AlertTweet[];
+  sentiment_filter?: string | null;
+}
+
+export interface PriceAlertWithStats {
+  id: string;
+  user_id: string;
+  symbol: string;
+  coingecko_id: string;
+  target_price: number;
+  direction: 'above' | 'below';
+  is_active: boolean;
+  triggered_at: string | null;
+  created_at: string;
+}
+
+export interface WalletAlertWithStats {
+  id: string;
+  user_id: string;
+  address: string;
+  label: string | null;
+  chain: 'eth' | 'sol';
+  min_value_usd: number;
+  is_active: boolean;
+  created_at: string;
+  triggerCount: number;
+  lastActivity: string;
 }

@@ -22,7 +22,9 @@ export default function BottomCTA() {
         <h2 className="text-2xl font-semibold md:text-3xl">
           Free to start. No credit card.
         </h2>
-        <p className="mt-3 text-muted-foreground">Set up your first alert in under a minute.</p>
+        <p className="mt-3 text-muted-foreground">
+          Social alerts, price tracking, and AI analysis. Set up in under a minute.
+        </p>
         <div className="mt-8">
           <Button asChild size="lg">
             <NextLink href="/auth?register=true">

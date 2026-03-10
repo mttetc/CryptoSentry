@@ -10,6 +10,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { Field, FieldLabel, FieldError, FieldDescription } from '@/components/ui/field';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { createSocialAlert, validateXAccount } from '@/actions/alerts';
@@ -19,6 +26,7 @@ const alertSchema = z.object({
   keywords: z
     .array(z.object({ value: z.string().min(1, 'Keyword cannot be empty') }))
     .min(1, 'At least one keyword is required'),
+  sentimentFilter: z.enum(['bullish', 'bearish', 'neutral']).nullable().optional(),
 });
 
 type AlertFormData = z.infer<typeof alertSchema>;
@@ -44,6 +52,7 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
     defaultValues: {
       account: '',
       keywords: [],
+      sentimentFilter: null,
     },
   });
 
@@ -82,6 +91,7 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
         account: data.account,
         keywords,
         platform: 'twitter',
+        sentimentFilter: data.sentimentFilter ?? undefined,
       });
 
       if (!result.success) {
@@ -179,6 +189,32 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
         {keywordsError && <FieldError errors={[keywordsError]} />}
         <FieldDescription>Press space or comma to add a keyword</FieldDescription>
       </Field>
+
+      {/* Sentiment filter */}
+      <Controller
+        name="sentimentFilter"
+        control={form.control}
+        render={({ field }) => (
+          <Field>
+            <FieldLabel>Sentiment Filter</FieldLabel>
+            <FieldDescription>Only trigger when tweet sentiment matches</FieldDescription>
+            <Select
+              value={field.value ?? 'any'}
+              onValueChange={(v) => field.onChange(v === 'any' ? null : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Any sentiment" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any sentiment</SelectItem>
+                <SelectItem value="bullish">Bullish only</SelectItem>
+                <SelectItem value="bearish">Bearish only</SelectItem>
+                <SelectItem value="neutral">Neutral only</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+      />
 
       {/* Submit */}
       <Button type="submit" className="w-full" disabled={isSubmitting || fields.length === 0}>

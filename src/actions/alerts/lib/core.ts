@@ -45,6 +45,21 @@ function toActionError(error: unknown, fallback: string): AlertState {
 
 // --- Server actions ---
 
+export async function validateXAccount(
+  account: string
+): Promise<{ exists: boolean }> {
+  await requireAuth();
+
+  try {
+    const res = await fetch(
+      `https://publish.twitter.com/oembed?url=https://x.com/${encodeURIComponent(account)}`
+    );
+    return { exists: res.ok };
+  } catch {
+    return { exists: false };
+  }
+}
+
 export async function createSocialAlert(
   input: z.input<typeof socialAlertSchema>
 ): Promise<AlertState> {

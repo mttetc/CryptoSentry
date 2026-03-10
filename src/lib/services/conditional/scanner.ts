@@ -64,10 +64,7 @@ function computeVolumeRatio(
   return avgDaily > 0 ? currentCount / avgDaily : 0;
 }
 
-function computeSentimentRatio(
-  triggers: TriggerRow[],
-  direction: string
-): number {
+function computeSentimentRatio(triggers: TriggerRow[], direction: string): number {
   let positive = 0;
   let negative = 0;
 
@@ -113,9 +110,7 @@ async function fetchTriggersInWindow(
   symbol?: string
 ): Promise<TriggerRow[]> {
   const supabase = createServiceSupabaseClient();
-  const cutoff = new Date(
-    Date.now() - timeWindowMinutes * 60 * 1000
-  ).toISOString();
+  const cutoff = new Date(Date.now() - timeWindowMinutes * 60 * 1000).toISOString();
 
   let query = supabase
     .from('alert_triggers')
@@ -143,12 +138,8 @@ async function fetchHistoricalTriggerCount(
   days: number
 ): Promise<number> {
   const supabase = createServiceSupabaseClient();
-  const start = new Date(
-    Date.now() - days * 24 * 60 * 60 * 1000
-  ).toISOString();
-  const end = new Date(
-    Date.now() - timeWindowMinutes * 60 * 1000
-  ).toISOString();
+  const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const end = new Date(Date.now() - timeWindowMinutes * 60 * 1000).toISOString();
 
   const { count } = await supabase
     .from('alert_triggers')
@@ -194,31 +185,29 @@ class ConditionalScanner {
       try {
         await this.evaluateRule(rule);
       } catch (error) {
-        console.error(
-          `[ConditionalScanner] Error evaluating rule ${rule.id}:`,
-          error
-        );
+        console.error(`[ConditionalScanner] Error evaluating rule ${rule.id}:`, error);
       }
     }
   }
 
   private async evaluateRule(rule: ConditionalRuleRow): Promise<void> {
     switch (rule.rule_type) {
-      case 'multi_influencer':
+      case 'multi_influencer': {
         await this.evaluateMultiInfluencer(rule);
         break;
-      case 'volume_spike':
+      }
+      case 'volume_spike': {
         await this.evaluateVolumeSpike(rule);
         break;
-      case 'sentiment_shift':
+      }
+      case 'sentiment_shift': {
         await this.evaluateSentimentShift(rule);
         break;
+      }
     }
   }
 
-  private async evaluateMultiInfluencer(
-    rule: ConditionalRuleRow
-  ): Promise<void> {
+  private async evaluateMultiInfluencer(rule: ConditionalRuleRow): Promise<void> {
     const minInfluencers = Number(rule.config.minInfluencers ?? 3);
     const tokenFilter = rule.config.tokenFilter as string[] | undefined;
 
@@ -249,17 +238,10 @@ class ConditionalScanner {
       return;
     }
 
-    const triggers = await fetchTriggersInWindow(
-      rule.time_window_minutes,
-      symbol
-    );
+    const triggers = await fetchTriggersInWindow(rule.time_window_minutes, symbol);
     const currentCount = triggers.length;
 
-    const historicalCount = await fetchHistoricalTriggerCount(
-      symbol,
-      rule.time_window_minutes,
-      7
-    );
+    const historicalCount = await fetchHistoricalTriggerCount(symbol, rule.time_window_minutes, 7);
 
     const ratio = computeVolumeRatio(currentCount, historicalCount, 7);
 
@@ -277,9 +259,7 @@ class ConditionalScanner {
     }
   }
 
-  private async evaluateSentimentShift(
-    rule: ConditionalRuleRow
-  ): Promise<void> {
+  private async evaluateSentimentShift(rule: ConditionalRuleRow): Promise<void> {
     const symbol = String(rule.config.symbol ?? '');
     const direction = String(rule.config.direction ?? 'negative');
     const threshold = Number(rule.config.threshold ?? 0.7);
@@ -288,10 +268,7 @@ class ConditionalScanner {
       return;
     }
 
-    const triggers = await fetchTriggersInWindow(
-      rule.time_window_minutes,
-      symbol
-    );
+    const triggers = await fetchTriggersInWindow(rule.time_window_minutes, symbol);
 
     const ratio = computeSentimentRatio(triggers, direction);
 

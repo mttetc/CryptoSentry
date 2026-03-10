@@ -9,16 +9,13 @@ interface TriggerEvent {
   data: Record<string, unknown>;
 }
 
-function matchesCondition(
-  condition: CompositeCondition,
-  event: TriggerEvent
-): boolean {
+function matchesCondition(condition: CompositeCondition, event: TriggerEvent): boolean {
   if (condition.type !== event.type) {
     return false;
   }
 
   switch (condition.type) {
-    case 'social':
+    case 'social': {
       return (
         event.data.account === condition.account &&
         condition.keywords.some((kw) =>
@@ -27,12 +24,16 @@ function matchesCondition(
             .includes(kw.toLowerCase())
         )
       );
-    case 'price':
+    }
+    case 'price': {
       return event.data.symbol === condition.symbol;
-    case 'whale':
+    }
+    case 'whale': {
       return event.data.chain === condition.chain;
-    default:
+    }
+    default: {
       return false;
+    }
   }
 }
 
@@ -49,10 +50,7 @@ function buildConditionEventRow(
   };
 }
 
-function allConditionsSatisfied(
-  conditionCount: number,
-  satisfiedIndices: Set<number>
-): boolean {
+function allConditionsSatisfied(conditionCount: number, satisfiedIndices: Set<number>): boolean {
   for (let i = 0; i < conditionCount; i++) {
     if (!satisfiedIndices.has(i)) {
       return false;
@@ -63,9 +61,7 @@ function allConditionsSatisfied(
 
 // --- I/O helpers ---
 
-async function fetchActiveCompositeAlerts(
-  userId: string
-): Promise<CompositeAlertRow[]> {
+async function fetchActiveCompositeAlerts(userId: string): Promise<CompositeAlertRow[]> {
   const supabase = createServiceSupabaseClient();
   const { data, error } = await supabase
     .from('composite_alerts')
@@ -97,9 +93,7 @@ async function getRecentConditionIndices(
   timeWindowMinutes: number
 ): Promise<Set<number>> {
   const supabase = createServiceSupabaseClient();
-  const cutoff = new Date(
-    Date.now() - timeWindowMinutes * 60 * 1000
-  ).toISOString();
+  const cutoff = new Date(Date.now() - timeWindowMinutes * 60 * 1000).toISOString();
 
   const { data } = await supabase
     .from('composite_condition_events')
@@ -116,10 +110,7 @@ async function getRecentConditionIndices(
 
 async function clearConditionEvents(alertId: string): Promise<void> {
   const supabase = createServiceSupabaseClient();
-  await supabase
-    .from('composite_condition_events')
-    .delete()
-    .eq('composite_alert_id', alertId);
+  await supabase.from('composite_condition_events').delete().eq('composite_alert_id', alertId);
 }
 
 async function updateLastEvaluated(alertId: string): Promise<void> {
@@ -143,9 +134,7 @@ interface CompositeEvent {
  * When all conditions for a composite alert are met within the time window,
  * fire a unified notification and clear the condition events.
  */
-export async function checkCompositeConditions(
-  event: CompositeEvent
-): Promise<void> {
+export async function checkCompositeConditions(event: CompositeEvent): Promise<void> {
   const alerts = await fetchActiveCompositeAlerts(event.userId);
 
   for (const alert of alerts) {
@@ -164,17 +153,10 @@ export async function checkCompositeConditions(
     }
 
     // Record matched condition events
-    await Promise.all(
-      matchedIndices.map((idx) =>
-        insertConditionEvent(alert.id, idx, event.data)
-      )
-    );
+    await Promise.all(matchedIndices.map((idx) => insertConditionEvent(alert.id, idx, event.data)));
 
     // Check if all conditions are now satisfied within the time window
-    const satisfiedIndices = await getRecentConditionIndices(
-      alert.id,
-      alert.time_window_minutes
-    );
+    const satisfiedIndices = await getRecentConditionIndices(alert.id, alert.time_window_minutes);
 
     if (allConditionsSatisfied(conditions.length, satisfiedIndices)) {
       // All conditions met - fire the composite alert
@@ -189,10 +171,7 @@ export async function checkCompositeConditions(
       });
 
       // Clear events and update timestamp
-      await Promise.all([
-        clearConditionEvents(alert.id),
-        updateLastEvaluated(alert.id),
-      ]);
+      await Promise.all([clearConditionEvents(alert.id), updateLastEvaluated(alert.id)]);
     }
   }
 }

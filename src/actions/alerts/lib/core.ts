@@ -16,6 +16,7 @@ function buildSocialAlertRow(userId: string, validated: z.infer<typeof socialAle
     account: validated.account,
     keywords: validated.keywords,
     call_enabled: validated.callEnabled,
+    sentiment_filter: validated.sentimentFilter ?? null,
     is_active: true,
   };
 }
@@ -33,6 +34,9 @@ function buildUpdateData(
   }
   if (validated.keywords) {
     data.keywords = validated.keywords;
+  }
+  if (validated.sentimentFilter !== undefined) {
+    data.sentiment_filter = validated.sentimentFilter;
   }
   return data;
 }

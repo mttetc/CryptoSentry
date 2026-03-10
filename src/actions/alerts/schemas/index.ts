@@ -9,6 +9,7 @@ export const socialAlertSchema = z.object({
   keywords: z.array(z.string().min(1)),
   platform: z.string().default('twitter'),
   callEnabled: z.boolean().optional().default(true),
+  sentimentFilter: z.enum(['bullish', 'bearish', 'neutral']).optional().nullable(),
 });
 
 export const updateSocialAlertSchema = z.object({
@@ -16,4 +17,5 @@ export const updateSocialAlertSchema = z.object({
   isActive: z.boolean().optional(),
   callEnabled: z.boolean().optional(),
   keywords: z.array(z.string().min(1)).optional(),
+  sentimentFilter: z.enum(['bullish', 'bearish', 'neutral']).optional().nullable(),
 });

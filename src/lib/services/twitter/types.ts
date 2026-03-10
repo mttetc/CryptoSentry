@@ -17,13 +17,22 @@ export interface SocialAlertRow {
   account: string;
   keywords: string[];
   is_active?: boolean;
+  sentiment_filter?: string | null;
+  call_enabled?: boolean;
+}
+
+export interface AnalyzedMatch {
+  alert: SocialAlertRow;
+  tweet: TweetData;
+  sentiment: 'bullish' | 'bearish' | 'neutral';
+  summary: string;
 }
 
 export interface ProcessingResult {
   processed: number;
   matched: number;
   triggered: number;
-  matches?: { alert: SocialAlertRow; tweet: TweetData }[];
+  matches?: AnalyzedMatch[];
 }
 
 export interface PipelineDeps {

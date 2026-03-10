@@ -1,8 +1,20 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { LogoMark } from '@/components/ui/logo';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { LogOut } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 
@@ -11,6 +23,13 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({ userEmail }: DashboardHeaderProps) {
+  const router = useRouter();
+
+  async function handleSignOut() {
+    await authClient.signOut();
+    router.push('/');
+  }
+
   return (
     <header className="bg-background/80 fixed top-0 right-0 left-0 z-50 border-b backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
@@ -26,10 +45,26 @@ export function DashboardHeader({ userEmail }: DashboardHeaderProps) {
           {userEmail && (
             <span className="text-muted-foreground hidden text-sm lg:inline">{userEmail}</span>
           )}
-          <Button variant="ghost" size="sm" onClick={() => authClient.signOut()}>
-            <LogOut className="mr-1.5 h-4 w-4" />
-            Sign out
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <LogOut className="mr-1.5 h-4 w-4" />
+                Sign out
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Sign out</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to sign out?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleSignOut}>Sign out</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
     </header>

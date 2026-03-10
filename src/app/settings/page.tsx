@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { TelegramSetup } from '@/components/telegram/telegram-setup';
 import { getOptionalSession } from '@/lib/api/auth';
 
@@ -5,7 +6,7 @@ export default async function SettingsPage() {
   const { session } = await getOptionalSession();
 
   if (!session?.user.id) {
-    return <div className="p-8 text-neutral-400">Please log in to access settings.</div>;
+    redirect('/auth');
   }
 
   return (

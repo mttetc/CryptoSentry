@@ -14,7 +14,6 @@ function buildSocialAlertRow(userId: string, validated: z.infer<typeof socialAle
     platform: validated.platform,
     account: validated.account,
     keywords: validated.keywords,
-    telegram_conversation_id: validated.telegramConversationId || null,
     call_enabled: validated.callEnabled,
     is_active: true,
   };
@@ -28,13 +27,12 @@ function buildUpdateData(
   if (validated.isActive !== undefined) {
     data.is_active = validated.isActive;
   }
+  if (validated.callEnabled !== undefined) {
+    data.call_enabled = validated.callEnabled;
+  }
   if (validated.keywords) {
     data.keywords = validated.keywords;
   }
-  if (validated.telegramConversationId) {
-    data.telegram_conversation_id = validated.telegramConversationId;
-  }
-
   return data;
 }
 
@@ -48,7 +46,7 @@ function toActionError(error: unknown, fallback: string): AlertState {
 // --- Server actions ---
 
 export async function createSocialAlert(
-  input: z.infer<typeof socialAlertSchema>
+  input: z.input<typeof socialAlertSchema>
 ): Promise<AlertState> {
   try {
     const { supabase, userId } = await requireAuth();

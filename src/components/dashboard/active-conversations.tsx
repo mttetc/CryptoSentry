@@ -1,9 +1,21 @@
 'use client';
 
 import { useState, useDeferredValue } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { SpotlightCard } from '@/components/ui/spotlight';
 import {
@@ -13,7 +25,6 @@ import {
   Repeat2,
   MessageCircle,
   Phone,
-  PhoneCall,
   Activity,
   Trash2,
   Pause,
@@ -24,6 +35,7 @@ import {
 import { deleteSocialAlert, updateSocialAlert } from '@/actions/alerts';
 import { formatDistance } from 'date-fns';
 import { useNow } from '@/hooks/use-now';
+import { toast } from 'sonner';
 import { plural } from '@/lib/utils/plural';
 import type { SocialAlertWithStats, AlertTweet } from '@/types/alerts';
 
@@ -35,11 +47,7 @@ interface ActiveConversationsProps {
   flashAlertIds?: Set<string>;
 }
 
-const cardVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
-  exit: { opacity: 0, y: -10, transition: { duration: 0.25 } },
-};
+const cardTransition = { duration: 0.25, ease: 'easeOut' as const };
 
 function TweetCard({ tweet }: { tweet: AlertTweet }) {
   const now = useNow();
@@ -100,46 +108,80 @@ function CompactAlertCard({
   onDelete?: (id: string) => void;
   onToggle?: (id: string) => void;
 }) {
-  const [isDeleting, setIsDeleting] = useState(false);
+  const isOptimistic = alert.id.startsWith('optimistic-');
   const [isToggling, setIsToggling] = useState(false);
+  const [optimisticCallEnabled, setOptimisticCallEnabled] = useState(alert.call_enabled);
+  const [isTogglingCall, setIsTogglingCall] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const now = useNow();
 
   const handleDelete = async () => {
-    setIsDeleting(true);
+    onDelete?.(alert.id);
+    toast.success(`@${alert.account} removed`);
     try {
       const result = await deleteSocialAlert(alert.id);
-      if (result.success) {
-        onDelete?.(alert.id);
+      if (!result.success) {
+        toast.error('Failed to delete alert');
       }
     } catch {
-      // Silent
-    } finally {
-      setIsDeleting(false);
+      toast.error('Failed to delete alert');
     }
   };
 
   const handleToggle = async () => {
+    const wasActive = alert.is_active;
+    onToggle?.(alert.id);
     setIsToggling(true);
+    toast.success(wasActive ? 'Alert paused' : 'Alert resumed');
     try {
       const result = await updateSocialAlert({
         id: alert.id,
-        isActive: !alert.is_active,
+        isActive: !wasActive,
       });
-      if (result.success) {
+      if (!result.success) {
         onToggle?.(alert.id);
+        toast.error('Failed to update alert');
       }
     } catch {
-      // Silent
+      onToggle?.(alert.id);
+      toast.error('Failed to update alert');
     } finally {
       setIsToggling(false);
+    }
+  };
+
+  const handleToggleCall = async () => {
+    const prev = optimisticCallEnabled;
+    setOptimisticCallEnabled(!prev);
+    setIsTogglingCall(true);
+    toast.success(prev ? 'Telegram call disabled' : 'Telegram call enabled');
+    try {
+      const result = await updateSocialAlert({
+        id: alert.id,
+        callEnabled: !prev,
+      });
+      if (!result.success) {
+        setOptimisticCallEnabled(prev);
+        toast.error('Failed to update call setting');
+      }
+    } catch {
+      setOptimisticCallEnabled(prev);
+      toast.error('Failed to update call setting');
+    } finally {
+      setIsTogglingCall(false);
     }
   };
 
   const matchCount = alert.recentTweets.length;
 
   return (
-    <motion.div variants={cardVariants} layout>
+    <motion.div
+      layoutId={`${alert.account}:${[...alert.keywords].sort().join(',')}`}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={cardTransition}
+    >
       <SpotlightCard className={`bg-card border ${isFlashing ? 'animate-flash-red' : ''}`}>
         <div className="p-4">
           {/* Row 1: Account + badges + actions */}
@@ -162,20 +204,11 @@ function CompactAlertCard({
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              {alert.telegram_conversation_id && (
-                <Badge variant="outline">
-                  {alert.call_enabled ? (
-                    <PhoneCall className="h-3 w-3" />
-                  ) : (
-                    <Phone className="h-3 w-3" />
-                  )}
-                </Badge>
-              )}
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={handleToggle}
-                disabled={isToggling}
+                disabled={isToggling || isOptimistic}
                 aria-label={alert.is_active ? 'Pause alert' : 'Resume alert'}
                 className="h-7 w-7"
               >
@@ -189,16 +222,32 @@ function CompactAlertCard({
                   return <Play className="h-3.5 w-3.5" />;
                 })()}
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleDelete}
-                disabled={isDeleting}
-                aria-label="Delete alert"
-                className="text-muted-foreground hover:text-destructive h-7 w-7"
-              >
-                {isDeleting ? <Spinner size="sm" /> : <Trash2 className="h-3.5 w-3.5" />}
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={isOptimistic}
+                    aria-label="Delete alert"
+                    className="text-muted-foreground hover:text-destructive h-7 w-7"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete alert?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete the alert for @{alert.account}. This action
+                      cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
 
@@ -222,7 +271,21 @@ function CompactAlertCard({
             </div>
           </div>
 
-          {/* Row 3: Expandable recent matches */}
+          {/* Row 3: Call toggle */}
+          <div className="mt-2.5 flex items-center justify-between rounded-md border px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Phone className="text-primary h-3.5 w-3.5" />
+              <span className="text-xs font-medium">Telegram Call</span>
+            </div>
+            <Switch
+              checked={optimisticCallEnabled}
+              onCheckedChange={handleToggleCall}
+              disabled={isTogglingCall || isOptimistic}
+              aria-label="Toggle Telegram call"
+            />
+          </div>
+
+          {/* Row 4: Expandable recent matches */}
           {matchCount > 0 && (
             <div className="mt-2">
               <button
@@ -256,7 +319,7 @@ function CompactAlertCard({
 
           {/* Incoming call toast */}
           <AnimatePresence>
-            {isFlashing && alert.call_enabled && (
+            {isFlashing && optimisticCallEnabled && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -285,7 +348,7 @@ function CompactAlertCard({
 
 function AddAlertCard() {
   return (
-    <motion.div variants={cardVariants} layout>
+    <motion.div layoutId="add-alert-card" layout transition={cardTransition}>
       <button
         type="button"
         onClick={() => {
@@ -329,23 +392,25 @@ export function ActiveConversations({
   const deferredAlerts = useDeferredValue(alerts);
 
   return (
-    <div className="flex flex-col gap-2">
-      {deferredAlerts.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <AnimatePresence mode="popLayout">
-          {deferredAlerts.map((alert) => (
-            <CompactAlertCard
-              key={alert.id}
-              alert={alert}
-              isFlashing={flashAlertIds.has(alert.id)}
-              onDelete={onDeleteAlert}
-              onToggle={onToggleAlert}
-            />
-          ))}
-        </AnimatePresence>
-      )}
-      <AddAlertCard />
-    </div>
+    <LayoutGroup>
+      <div className="flex flex-col gap-2">
+        {deferredAlerts.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <AnimatePresence mode="popLayout">
+            {deferredAlerts.map((alert) => (
+              <CompactAlertCard
+                key={`${alert.account}:${[...alert.keywords].sort().join(',')}`}
+                alert={alert}
+                isFlashing={flashAlertIds.has(alert.id)}
+                onDelete={onDeleteAlert}
+                onToggle={onToggleAlert}
+              />
+            ))}
+          </AnimatePresence>
+        )}
+        <AddAlertCard />
+      </div>
+    </LayoutGroup>
   );
 }

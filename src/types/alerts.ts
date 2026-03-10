@@ -40,7 +40,6 @@ export interface SocialAlertWithStats {
   account: string;
   keywords: string[];
   is_active: boolean;
-  telegram_conversation_id: string | null;
   call_enabled: boolean;
   created_at: string;
   tweetCount: number;

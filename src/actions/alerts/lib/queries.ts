@@ -46,7 +46,6 @@ export async function getSocialAlertsWithStats(
         account: String(alert.account),
         keywords: alert.keywords ?? [],
         is_active: Boolean(alert.is_active),
-        telegram_conversation_id: alert.telegram_conversation_id ?? null,
         call_enabled: Boolean(alert.call_enabled ?? true),
         created_at: String(alert.created_at),
         tweetCount: triggers?.length ?? 0,

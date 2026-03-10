@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
 import { FEATURES } from './lib/config/features';
 
-export async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   // In dev mode, bypass all authentication
   if (FEATURES.isDevMode) {
     return NextResponse.next();

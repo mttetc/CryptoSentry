@@ -8,11 +8,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { Field, FieldLabel, FieldError, FieldDescription } from '@/components/ui/field';
-import { X, Phone } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { X } from 'lucide-react';
+import { toast } from 'sonner';
 import { createSocialAlert } from '@/actions/alerts';
 
 const alertSchema = z.object({
@@ -20,15 +19,19 @@ const alertSchema = z.object({
   keywords: z
     .array(z.object({ value: z.string().min(1, 'Keyword cannot be empty') }))
     .min(1, 'At least one keyword is required'),
-  telegramConversationId: z.string().optional(),
-  callEnabled: z.boolean(),
 });
 
 type AlertFormData = z.infer<typeof alertSchema>;
 
+export interface OptimisticAlertData {
+  account: string;
+  keywords: string[];
+  platform: string;
+}
+
 interface CreateAlertFormProps {
   userId: string;
-  onAlertCreated?: () => void;
+  onAlertCreated?: (data: OptimisticAlertData) => void;
   onClose?: () => void;
 }
 
@@ -36,15 +39,12 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
   const [newKeyword, setNewKeyword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const keywordInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
 
   const form = useForm<AlertFormData>({
     resolver: zodResolver(alertSchema),
     defaultValues: {
       account: '',
       keywords: [],
-      telegramConversationId: '',
-      callEnabled: true,
     },
   });
 
@@ -62,36 +62,29 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
   };
 
   const onSubmit = async (data: AlertFormData) => {
-    setIsSubmitting(true);
+    const keywords = data.keywords.map((k) => k.value);
+
+    // Optimistic: close dialog and show alert immediately
+    toast.success(`Now monitoring @${data.account}`);
+    form.reset();
+    onAlertCreated?.({ account: data.account, keywords, platform: 'twitter' });
+    onClose?.();
+
+    // Server action runs async — dispatch event when done so dashboard can reconcile
     try {
       const result = await createSocialAlert({
         account: data.account,
-        keywords: data.keywords.map((k) => k.value),
+        keywords,
         platform: 'twitter',
-        telegramConversationId: data.telegramConversationId,
-        callEnabled: data.callEnabled,
       });
 
-      if (result.success) {
-        toast({ title: 'Alert created', description: `Now monitoring @${data.account}` });
-        form.reset();
-        onAlertCreated?.();
-        onClose?.();
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: result.error || 'Failed to create alert.',
-        });
+      if (!result.success) {
+        toast.error(result.error || 'Failed to create alert.');
       }
     } catch {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to create alert. Please try again.',
-      });
+      toast.error('Failed to create alert. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      window.dispatchEvent(new CustomEvent('alert-synced'));
     }
   };
 
@@ -177,48 +170,6 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
         {keywordsError && <FieldError errors={[keywordsError]} />}
         <FieldDescription>Press space or comma to add a keyword</FieldDescription>
       </Field>
-
-      {/* Telegram Conversation ID */}
-      <Controller
-        name="telegramConversationId"
-        control={form.control}
-        render={({ field, fieldState }) => (
-          <Field data-invalid={fieldState.invalid}>
-            <FieldLabel htmlFor={field.name}>
-              Telegram Conversation ID{' '}
-              <span className="text-muted-foreground font-normal">(optional)</span>
-            </FieldLabel>
-            <Input
-              {...field}
-              id={field.name}
-              placeholder="123456789"
-              aria-invalid={fieldState.invalid}
-            />
-            {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-            <FieldDescription>
-              Start a conversation with @CryptoSentryBot on Telegram, then paste the chat ID here.
-            </FieldDescription>
-          </Field>
-        )}
-      />
-
-      {/* Call Toggle */}
-      <Controller
-        name="callEnabled"
-        control={form.control}
-        render={({ field }) => (
-          <Field orientation="horizontal" className="justify-between rounded-lg border p-3.5">
-            <div className="flex items-center gap-3">
-              <Phone className="text-primary h-4 w-4" />
-              <div>
-                <p className="text-sm font-medium">Telegram Call</p>
-                <p className="text-muted-foreground text-xs">Ring when keywords match</p>
-              </div>
-            </div>
-            <Switch id={field.name} checked={field.value} onCheckedChange={field.onChange} />
-          </Field>
-        )}
-      />
 
       {/* Submit */}
       <Button type="submit" className="w-full" disabled={isSubmitting || fields.length === 0}>

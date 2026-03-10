@@ -11,11 +11,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { CreateAlertForm } from './create-alert-form';
+import { CreateAlertForm, type OptimisticAlertData } from './create-alert-form';
 
 interface CreateAlertDialogProps {
   userId: string;
-  onAlertCreated?: () => void;
+  onAlertCreated?: (data: OptimisticAlertData) => void;
 }
 
 export function CreateAlertDialog({ userId, onAlertCreated }: CreateAlertDialogProps) {
@@ -32,17 +32,27 @@ export function CreateAlertDialog({ userId, onAlertCreated }: CreateAlertDialogP
     };
   }, []);
 
-  const handleCreated = () => {
-    onAlertCreated?.();
+  const handleCreated = (data: OptimisticAlertData) => {
+    onAlertCreated?.(data);
     setOpen(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {/* Desktop: inline button */}
       <DialogTrigger asChild>
-        <Button>
+        <Button className="hidden sm:inline-flex">
           <Plus className="mr-1.5 h-4 w-4" />
           New Alert
+        </Button>
+      </DialogTrigger>
+      {/* Mobile: FAB */}
+      <DialogTrigger asChild>
+        <Button
+          size="icon"
+          className="bg-primary text-primary-foreground fixed right-4 bottom-4 z-50 h-11 w-11 rounded-full shadow-lg sm:hidden"
+        >
+          <Plus className="h-5 w-5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">

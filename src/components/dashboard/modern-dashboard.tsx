@@ -128,12 +128,42 @@ export function ModernDashboard({ userId, initialAlerts }: ModernDashboardProps)
 
   // Listen for alert-created events from the title row
   useEffect(() => {
-    const handler = () => {
-      refreshAlerts();
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | {
+            account: string;
+            keywords: string[];
+            platform: string;
+          }
+        | undefined;
+
+      if (detail) {
+        // Optimistic: add placeholder alert immediately
+        setAlerts((prev) => [
+          {
+            id: `optimistic-${Date.now()}`,
+            user_id: userId,
+            platform: detail.platform,
+            account: detail.account,
+            keywords: detail.keywords,
+            is_active: true,
+            call_enabled: true,
+            created_at: new Date().toISOString(),
+            tweetCount: 0,
+            lastActivity: '',
+            recentTweets: [],
+          },
+          ...prev,
+        ]);
+      }
     };
+    // Reconcile when the server action finishes (fired by create-alert-form)
+    const syncHandler = () => refreshAlerts();
     window.addEventListener('alert-created', handler);
+    window.addEventListener('alert-synced', syncHandler);
     return () => {
       window.removeEventListener('alert-created', handler);
+      window.removeEventListener('alert-synced', syncHandler);
     };
   }, []);
 

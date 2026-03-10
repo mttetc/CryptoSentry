@@ -3,8 +3,11 @@ import { DashboardShell } from '@/components/dashboard/dashboard-shell';
 import { DashboardHeader } from '@/components/dashboard/dashboard-header';
 import { DashboardTitleRow } from '@/components/dashboard/dashboard-title-row';
 import { ModernDashboard } from '@/components/dashboard/modern-dashboard';
+import { TelegramQrConnect } from '@/components/telegram/telegram-qr-connect';
 import { getOptionalSession } from '@/lib/api/auth';
 import { getSocialAlertsWithStats } from '@/actions/alerts/lib/queries';
+import { generateConnectToken } from '@/lib/telegram-connect-token';
+import { createServiceSupabaseClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,11 +85,24 @@ export default async function DashboardPage() {
     return <div>Please log in to access the dashboard.</div>;
   }
 
+  const supabase = createServiceSupabaseClient();
+  const { data: telegramSettings } = await supabase
+    .from('user_telegram_settings')
+    .select('status')
+    .eq('user_id', session.user.id)
+    .single();
+
+  const isTelegramConnected = telegramSettings?.status === 'connected';
+
   return (
     <DashboardShell>
       <div className="space-y-6">
         <DashboardHeader userEmail={session.user.email} />
         <DashboardTitleRow userId={session.user.id} />
+        <TelegramQrConnect
+          connectLink={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'CryptoSentryBot'}?start=${generateConnectToken(session.user.id)}`}
+          isConnected={isTelegramConnected}
+        />
         <Suspense fallback={<ContentSkeleton />}>
           <AlertsContent userId={session.user.id} />
         </Suspense>

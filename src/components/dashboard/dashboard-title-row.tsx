@@ -13,7 +13,7 @@ function handleAlertCreated(data: OptimisticAlertData) {
 
 export function DashboardTitleRow({ userId }: DashboardTitleRowProps) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-2">
         <div className="bg-primary h-2 w-2 rounded-full" />
         <h2 className="text-lg font-semibold tracking-tight">Your Alerts</h2>

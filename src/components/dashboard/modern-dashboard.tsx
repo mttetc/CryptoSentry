@@ -156,13 +156,14 @@ export function ModernDashboard({ userId, initialAlerts }: ModernDashboardProps)
           ...prev,
         ]);
       }
-
-      // Reconcile with server
-      refreshAlerts();
     };
+    // Reconcile when the server action finishes (fired by create-alert-form)
+    const syncHandler = () => refreshAlerts();
     window.addEventListener('alert-created', handler);
+    window.addEventListener('alert-synced', syncHandler);
     return () => {
       window.removeEventListener('alert-created', handler);
+      window.removeEventListener('alert-synced', syncHandler);
     };
   }, []);
 

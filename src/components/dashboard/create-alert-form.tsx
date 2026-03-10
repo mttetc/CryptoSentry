@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { Field, FieldLabel, FieldError, FieldDescription } from '@/components/ui/field';
 import { X } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { createSocialAlert } from '@/actions/alerts';
 
 const alertSchema = z.object({
@@ -39,7 +39,6 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
   const [newKeyword, setNewKeyword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const keywordInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
 
   const form = useForm<AlertFormData>({
     resolver: zodResolver(alertSchema),
@@ -66,12 +65,12 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
     const keywords = data.keywords.map((k) => k.value);
 
     // Optimistic: close dialog and show alert immediately
-    toast({ title: 'Alert created', description: `Now monitoring @${data.account}` });
+    toast.success(`Now monitoring @${data.account}`);
     form.reset();
     onAlertCreated?.({ account: data.account, keywords, platform: 'twitter' });
     onClose?.();
 
-    // Fire and forget — server action + revalidation handles reconciliation
+    // Server action runs async — dispatch event when done so dashboard can reconcile
     try {
       const result = await createSocialAlert({
         account: data.account,
@@ -80,18 +79,12 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
       });
 
       if (!result.success) {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: result.error || 'Failed to create alert.',
-        });
+        toast.error(result.error || 'Failed to create alert.');
       }
     } catch {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to create alert. Please try again.',
-      });
+      toast.error('Failed to create alert. Please try again.');
+    } finally {
+      window.dispatchEvent(new CustomEvent('alert-synced'));
     }
   };
 

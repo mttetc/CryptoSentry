@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
+import { Toaster } from 'sonner';
 import { FEATURES } from '@/lib/config/features';
 import { Providers } from './providers';
 
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           )}
           {children}
+          <Toaster theme="dark" richColors position="bottom-right" />
         </Providers>
       </body>
     </html>

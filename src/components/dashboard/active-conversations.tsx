@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useDeferredValue } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,7 +35,7 @@ import {
 import { deleteSocialAlert, updateSocialAlert } from '@/actions/alerts';
 import { formatDistance } from 'date-fns';
 import { useNow } from '@/hooks/use-now';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { plural } from '@/lib/utils/plural';
 import type { SocialAlertWithStats, AlertTweet } from '@/types/alerts';
 
@@ -47,11 +47,7 @@ interface ActiveConversationsProps {
   flashAlertIds?: Set<string>;
 }
 
-const cardVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
-  exit: { opacity: 0, y: -10, transition: { duration: 0.25 } },
-};
+const cardTransition = { duration: 0.25, ease: 'easeOut' as const };
 
 function TweetCard({ tweet }: { tweet: AlertTweet }) {
   const now = useNow();
@@ -118,41 +114,37 @@ function CompactAlertCard({
   const [isTogglingCall, setIsTogglingCall] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const now = useNow();
-  const { toast } = useToast();
 
   const handleDelete = async () => {
-    onDelete?.(alert.id); // Optimistic: remove immediately
-    toast({ title: 'Alert deleted', description: `@${alert.account} removed` });
+    onDelete?.(alert.id);
+    toast.success(`@${alert.account} removed`);
     try {
       const result = await deleteSocialAlert(alert.id);
       if (!result.success) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete alert' });
+        toast.error('Failed to delete alert');
       }
     } catch {
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete alert' });
+      toast.error('Failed to delete alert');
     }
   };
 
   const handleToggle = async () => {
     const wasActive = alert.is_active;
-    onToggle?.(alert.id); // Optimistic
+    onToggle?.(alert.id);
     setIsToggling(true);
-    toast({
-      title: wasActive ? 'Alert paused' : 'Alert resumed',
-      description: `@${alert.account}`,
-    });
+    toast.success(wasActive ? 'Alert paused' : 'Alert resumed');
     try {
       const result = await updateSocialAlert({
         id: alert.id,
         isActive: !wasActive,
       });
       if (!result.success) {
-        onToggle?.(alert.id); // Revert
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to update alert' });
+        onToggle?.(alert.id);
+        toast.error('Failed to update alert');
       }
     } catch {
-      onToggle?.(alert.id); // Revert
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to update alert' });
+      onToggle?.(alert.id);
+      toast.error('Failed to update alert');
     } finally {
       setIsToggling(false);
     }
@@ -160,32 +152,21 @@ function CompactAlertCard({
 
   const handleToggleCall = async () => {
     const prev = optimisticCallEnabled;
-    setOptimisticCallEnabled(!prev); // Optimistic
+    setOptimisticCallEnabled(!prev);
     setIsTogglingCall(true);
-    toast({
-      title: prev ? 'Telegram call disabled' : 'Telegram call enabled',
-      description: `@${alert.account}`,
-    });
+    toast.success(prev ? 'Telegram call disabled' : 'Telegram call enabled');
     try {
       const result = await updateSocialAlert({
         id: alert.id,
         callEnabled: !prev,
       });
       if (!result.success) {
-        setOptimisticCallEnabled(prev); // Revert
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to update call setting',
-        });
+        setOptimisticCallEnabled(prev);
+        toast.error('Failed to update call setting');
       }
     } catch {
-      setOptimisticCallEnabled(prev); // Revert
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to update call setting',
-      });
+      setOptimisticCallEnabled(prev);
+      toast.error('Failed to update call setting');
     } finally {
       setIsTogglingCall(false);
     }
@@ -194,7 +175,13 @@ function CompactAlertCard({
   const matchCount = alert.recentTweets.length;
 
   return (
-    <motion.div variants={cardVariants} layout>
+    <motion.div
+      layoutId={`${alert.account}:${[...alert.keywords].sort().join(',')}`}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={cardTransition}
+    >
       <SpotlightCard className={`bg-card border ${isFlashing ? 'animate-flash-red' : ''}`}>
         <div className="p-4">
           {/* Row 1: Account + badges + actions */}
@@ -361,7 +348,7 @@ function CompactAlertCard({
 
 function AddAlertCard() {
   return (
-    <motion.div variants={cardVariants} layout>
+    <motion.div layoutId="add-alert-card" layout transition={cardTransition}>
       <button
         type="button"
         onClick={() => {
@@ -405,23 +392,25 @@ export function ActiveConversations({
   const deferredAlerts = useDeferredValue(alerts);
 
   return (
-    <div className="flex flex-col gap-2">
-      {deferredAlerts.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <AnimatePresence mode="popLayout">
-          {deferredAlerts.map((alert) => (
-            <CompactAlertCard
-              key={alert.id}
-              alert={alert}
-              isFlashing={flashAlertIds.has(alert.id)}
-              onDelete={onDeleteAlert}
-              onToggle={onToggleAlert}
-            />
-          ))}
-        </AnimatePresence>
-      )}
-      <AddAlertCard />
-    </div>
+    <LayoutGroup>
+      <div className="flex flex-col gap-2">
+        {deferredAlerts.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <AnimatePresence mode="popLayout">
+            {deferredAlerts.map((alert) => (
+              <CompactAlertCard
+                key={`${alert.account}:${[...alert.keywords].sort().join(',')}`}
+                alert={alert}
+                isFlashing={flashAlertIds.has(alert.id)}
+                onDelete={onDeleteAlert}
+                onToggle={onToggleAlert}
+              />
+            ))}
+          </AnimatePresence>
+        )}
+        <AddAlertCard />
+      </div>
+    </LayoutGroup>
   );
 }

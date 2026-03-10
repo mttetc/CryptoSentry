@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Webhook, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface WebhookInfo {
@@ -19,7 +19,6 @@ export function WebhookStatus() {
   const [webhooks, setWebhooks] = useState<WebhookInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { toast } = useToast();
 
   const fetchWebhooks = useCallback(async () => {
     try {
@@ -32,16 +31,12 @@ export function WebhookStatus() {
       }
     } catch (error) {
       console.error('Error fetching webhooks:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to fetch webhook status',
-      });
+      toast.error('Failed to fetch webhook status');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     fetchWebhooks();
@@ -64,8 +59,8 @@ export function WebhookStatus() {
         </CardHeader>
         <CardContent>
           <div className="animate-pulse space-y-4">
-            <div className="h-4 w-3/4 rounded bg-muted"></div>
-            <div className="h-4 w-1/2 rounded bg-muted"></div>
+            <div className="bg-muted h-4 w-3/4 rounded"></div>
+            <div className="bg-muted h-4 w-1/2 rounded"></div>
           </div>
         </CardContent>
       </Card>
@@ -89,9 +84,9 @@ export function WebhookStatus() {
       <CardContent className="space-y-4">
         {webhooks.length === 0 ? (
           <div className="py-8 text-center">
-            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+            <AlertCircle className="text-muted-foreground mx-auto mb-4 h-12 w-12" />
             <p className="text-muted-foreground">No webhooks configured</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Webhooks will be automatically created when monitoring starts
             </p>
           </div>
@@ -110,8 +105,8 @@ export function WebhookStatus() {
                   )}
                   <div>
                     <p className="font-medium">Apify Webhook</p>
-                    <p className="text-sm text-muted-foreground">{webhook.eventTypes.join(', ')}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-muted-foreground text-sm">{webhook.eventTypes.join(', ')}</p>
+                    <p className="text-muted-foreground text-xs">
                       Created: {new Date(webhook.createdAt).toLocaleDateString()}
                     </p>
                   </div>
@@ -127,8 +122,8 @@ export function WebhookStatus() {
         )}
 
         {webhooks.length > 0 && (
-          <div className="rounded-lg bg-muted p-4">
-            <p className="text-sm text-muted-foreground">
+          <div className="bg-muted rounded-lg p-4">
+            <p className="text-muted-foreground text-sm">
               ✅ Real-time monitoring is active via webhooks. You&apos;ll receive instant alerts
               when influencers mention your keywords.
             </p>

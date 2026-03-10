@@ -8,20 +8,17 @@ interface SpotlightCardProps {
   className?: string;
 }
 
-export function SpotlightCard({ children, className }: SpotlightCardProps) {
-  const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-    e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-  };
+function handleMouseMove(e: MouseEvent<HTMLDivElement>) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+  e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+}
 
+export function SpotlightCard({ children, className }: SpotlightCardProps) {
   return (
     <div
       onMouseMove={handleMouseMove}
-      className={cn(
-        'group/spotlight relative overflow-hidden rounded-xl',
-        className
-      )}
+      className={cn('group/spotlight relative overflow-hidden rounded-xl', className)}
     >
       {/* Spotlight gradient that follows the mouse */}
       <div

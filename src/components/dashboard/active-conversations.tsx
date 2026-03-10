@@ -176,7 +176,7 @@ function CompactAlertCard({
 
   return (
     <motion.div
-      layoutId={`${alert.account}:${[...alert.keywords].sort().join(',')}`}
+      layoutId={`${alert.account}:${[...alert.keywords].toSorted().join(',')}`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -20 }}
@@ -214,7 +214,7 @@ function CompactAlertCard({
               >
                 {(() => {
                   if (isToggling) {
-                    return <Spinner size="sm" />;
+                    return <Spinner className="size-3.5" />;
                   }
                   if (alert.is_active) {
                     return <Pause className="h-3.5 w-3.5" />;
@@ -400,7 +400,7 @@ export function ActiveConversations({
           <AnimatePresence mode="popLayout">
             {deferredAlerts.map((alert) => (
               <CompactAlertCard
-                key={`${alert.account}:${[...alert.keywords].sort().join(',')}`}
+                key={`${alert.account}:${[...alert.keywords].toSorted().join(',')}`}
                 alert={alert}
                 isFlashing={flashAlertIds.has(alert.id)}
                 onDelete={onDeleteAlert}

@@ -37,7 +37,6 @@ interface CreateAlertFormProps {
 
 export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProps) {
   const [newKeyword, setNewKeyword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const keywordInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<AlertFormData>({
@@ -88,7 +87,10 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
     }
   };
 
-  const keywordsError = form.formState.errors.keywords;
+  const {
+    errors: { keywords: keywordsError },
+    isSubmitting,
+  } = form.formState;
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
@@ -175,7 +177,7 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
       <Button type="submit" className="w-full" disabled={isSubmitting || fields.length === 0}>
         {isSubmitting ? (
           <>
-            <Spinner size="sm" className="mr-2" />
+            <Spinner className="mr-2 size-3.5" />
             Creating...
           </>
         ) : (

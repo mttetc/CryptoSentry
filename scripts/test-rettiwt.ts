@@ -2,8 +2,7 @@ import { Rettiwt } from 'rettiwt-api';
 
 const API_KEY = process.env.RETTIWT_API_KEY;
 if (!API_KEY) {
-  console.error('Set RETTIWT_API_KEY env var');
-  process.exit(1);
+  throw new Error('Set RETTIWT_API_KEY env var');
 }
 
 const rettiwt = new Rettiwt({ apiKey: API_KEY });

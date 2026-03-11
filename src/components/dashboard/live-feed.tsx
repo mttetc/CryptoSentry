@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { Badge } from '@/components/ui/badge';
 import { Radio } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { SocialAlertWithStats, AlertTweet } from '@/types/alerts';
 
 interface LiveFeedProps {
@@ -14,6 +15,8 @@ interface FeedItem extends AlertTweet {
   alertId: string;
   matchedKeywords: string[];
   callEnabled: boolean;
+  sentiment?: string | null;
+  summary?: string | null;
 }
 
 function collectFeedItems(alerts: SocialAlertWithStats[]): FeedItem[] {
@@ -33,8 +36,9 @@ function collectFeedItems(alerts: SocialAlertWithStats[]): FeedItem[] {
     }
   }
 
-  items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  return items.slice(0, 6);
+  return items
+    .toSorted((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 6);
 }
 
 function highlightKeywords(text: string, keywords: string[]) {
@@ -78,12 +82,30 @@ function FeedEntry({ item, isCalling }: { item: FeedItem; isCalling: boolean }) 
           >
             @{item.author}
           </a>
+          <div className="mt-1 flex items-center gap-1.5">
+            {item.sentiment && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  'font-mono text-[10px]',
+                  item.sentiment === 'bullish' && 'border-green-500/20 text-green-500',
+                  item.sentiment === 'bearish' && 'border-red-500/20 text-red-500',
+                  item.sentiment === 'neutral' && 'text-muted-foreground'
+                )}
+              >
+                {item.sentiment}
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
             {highlightKeywords(
               item.text.length > 200 ? `${item.text.slice(0, 200)}...` : item.text,
               item.matchedKeywords
             )}
           </p>
+          {item.summary && (
+            <p className="text-muted-foreground mt-0.5 text-xs italic">{item.summary}</p>
+          )}
         </div>
         {isCalling && (
           <Badge

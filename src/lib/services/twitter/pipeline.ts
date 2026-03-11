@@ -1,6 +1,14 @@
-import type { TweetData, SocialAlertRow, ProcessingResult, PipelineDeps } from './types';
+import type {
+  TweetData,
+  SocialAlertRow,
+  ProcessingResult,
+  PipelineDeps,
+  AnalyzedMatch,
+} from './types';
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
 import { sendUnifiedAlert } from '@/actions/messaging/unified-notifications';
+import { analyzeTweet } from '@/lib/services/ai';
+import { captureInfluencerEvent } from '@/lib/services/influencer/scorer';
 
 // --- Dedup cache (singleton per process) ---
 
@@ -78,6 +86,32 @@ export function findMatches(
   return matches;
 }
 
+// --- AI analysis ---
+
+async function analyzeMatches(
+  matches: { alert: SocialAlertRow; tweet: TweetData }[]
+): Promise<AnalyzedMatch[]> {
+  const analyses = await Promise.allSettled(
+    matches.map(async ({ alert, tweet }) => {
+      const analysis = await analyzeTweet(tweet.text);
+      return { alert, tweet, sentiment: analysis.sentiment, summary: analysis.summary };
+    })
+  );
+
+  return analyses
+    .filter((r): r is PromiseFulfilledResult<AnalyzedMatch> => r.status === 'fulfilled')
+    .map((r) => r.value);
+}
+
+function filterBySentiment(matches: AnalyzedMatch[]): AnalyzedMatch[] {
+  return matches.filter(({ alert, sentiment }) => {
+    if (!alert.sentiment_filter) {
+      return true;
+    }
+    return alert.sentiment_filter === sentiment;
+  });
+}
+
 // --- I/O helpers (used in prod when no deps injected) ---
 
 export async function fetchActiveAlerts(): Promise<SocialAlertRow[]> {
@@ -100,12 +134,19 @@ function buildEngagement(tweet: TweetData) {
   };
 }
 
-async function persistTrigger(alert: SocialAlertRow, tweet: TweetData): Promise<void> {
+async function persistTrigger(
+  alert: SocialAlertRow,
+  tweet: TweetData,
+  sentiment?: string,
+  summary?: string
+): Promise<void> {
   const supabase = createServiceSupabaseClient();
   const { error } = await supabase.from('alert_triggers').insert({
     alert_id: alert.id,
     user_id: alert.user_id,
     type: 'social',
+    sentiment,
+    summary,
     data: {
       content: tweet.text,
       tweet_url: tweet.url,
@@ -121,7 +162,12 @@ async function persistTrigger(alert: SocialAlertRow, tweet: TweetData): Promise<
   }
 }
 
-async function triggerAlert(alert: SocialAlertRow, tweet: TweetData): Promise<void> {
+async function triggerAlert(
+  alert: SocialAlertRow,
+  tweet: TweetData,
+  sentiment?: string,
+  summary?: string
+): Promise<void> {
   const notification = {
     userId: alert.user_id,
     alertType: 'social' as const,
@@ -130,18 +176,28 @@ async function triggerAlert(alert: SocialAlertRow, tweet: TweetData): Promise<vo
       account: alert.account,
       keywords: alert.keywords,
       tweet_url: tweet.url,
+      sentiment,
+      summary,
     },
   };
 
-  await Promise.allSettled([persistTrigger(alert, tweet), sendUnifiedAlert(notification)]);
+  await Promise.allSettled([
+    persistTrigger(alert, tweet, sentiment, summary),
+    sendUnifiedAlert(notification),
+  ]);
+
+  // Fire-and-forget: capture influencer event for scoring
+  captureInfluencerEvent(alert.account, tweet.text, tweet.id).catch(() => {
+    // Silent - scoring is non-critical
+  });
 }
 
 // --- Main entry point ---
 
 /**
- * Process tweets through the pipeline: dedup → match → trigger.
+ * Process tweets through the pipeline: dedup -> match -> analyze -> filter -> trigger.
  *
- * In prod: called with no deps — fetches alerts from Supabase, persists + broadcasts.
+ * In prod: called with no deps - fetches alerts from Supabase, persists + broadcasts.
  * In dev/test: pass `deps` to inject alerts and a custom trigger (no Supabase needed).
  */
 export async function processTweets(
@@ -156,7 +212,6 @@ export async function processTweets(
   console.warn(`[Pipeline] Processing ${fresh.length} new tweets`);
 
   const alerts = deps ? deps.alerts : await fetchActiveAlerts();
-
   const twitterAlerts = alerts.filter((a) => a.platform === 'twitter');
   const matches = findMatches(twitterAlerts, fresh);
 
@@ -166,13 +221,23 @@ export async function processTweets(
 
   console.warn(`[Pipeline] Found ${matches.length} keyword matches`);
 
-  const onTrigger = deps?.onTrigger ?? triggerAlert;
+  // Analyze with AI (non-blocking, fallback to neutral)
+  const analyzed = await analyzeMatches(matches);
+  const filtered = filterBySentiment(analyzed);
+
+  console.warn(`[Pipeline] After sentiment filter: ${filtered.length} matches`);
+
+  const onTrigger = deps?.onTrigger;
 
   const results = await Promise.allSettled(
-    matches.map(({ alert, tweet }) => onTrigger(alert, tweet))
+    filtered.map(({ alert, tweet, sentiment, summary }) =>
+      onTrigger
+        ? onTrigger(alert, tweet)
+        : triggerAlert(alert, tweet, sentiment, summary)
+    )
   );
 
   const triggered = results.filter((r) => r.status === 'fulfilled').length;
 
-  return { processed: fresh.length, matched: matches.length, triggered, matches };
+  return { processed: fresh.length, matched: matches.length, triggered, matches: filtered };
 }

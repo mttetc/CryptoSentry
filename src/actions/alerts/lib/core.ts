@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/api/auth';
 import { socialAlertSchema, updateSocialAlertSchema, type AlertState } from '../schemas';
 import { socialMonitor } from '@/lib/services/twitter/social-monitor';
+import { checkAlertLimit } from '@/lib/config/plans';
 import type { z } from 'zod';
 
 // --- Pure functions ---
@@ -15,6 +16,7 @@ function buildSocialAlertRow(userId: string, validated: z.infer<typeof socialAle
     account: validated.account,
     keywords: validated.keywords,
     call_enabled: validated.callEnabled,
+    sentiment_filter: validated.sentimentFilter ?? null,
     is_active: true,
   };
 }
@@ -33,6 +35,9 @@ function buildUpdateData(
   if (validated.keywords) {
     data.keywords = validated.keywords;
   }
+  if (validated.sentimentFilter !== undefined) {
+    data.sentiment_filter = validated.sentimentFilter;
+  }
   return data;
 }
 
@@ -45,9 +50,7 @@ function toActionError(error: unknown, fallback: string): AlertState {
 
 // --- Server actions ---
 
-export async function validateXAccount(
-  account: string
-): Promise<{ exists: boolean }> {
+export async function validateXAccount(account: string): Promise<{ exists: boolean }> {
   await requireAuth();
 
   try {
@@ -66,6 +69,12 @@ export async function createSocialAlert(
   try {
     const { supabase, userId } = await requireAuth();
     const validated = socialAlertSchema.parse(input);
+
+    // Check plan limits before creating
+    const alertLimit = await checkAlertLimit(userId);
+    if (!alertLimit.allowed) {
+      return { success: false, error: alertLimit.error };
+    }
 
     const { error } = await supabase
       .from('social_alerts')

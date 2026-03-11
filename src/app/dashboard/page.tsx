@@ -7,8 +7,11 @@ import { TelegramQrConnect } from '@/components/telegram/telegram-qr-connect';
 import { redirect } from 'next/navigation';
 import { getOptionalSession } from '@/lib/api/auth';
 import { getSocialAlertsWithStats } from '@/actions/alerts/lib/queries';
+import { getPriceAlertsWithStats } from '@/actions/alerts/lib/price-queries';
+import { getWalletAlertsWithStats } from '@/actions/wallets/lib/queries';
 import { generateConnectToken } from '@/lib/telegram-connect-token';
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
+import { getUserPlan, getUserAlertCount, getPlanLimits } from '@/lib/config/plans';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,8 +78,24 @@ async function AlertsContent({ userId }: { userId: string }) {
   if (!supabase) {
     return null;
   }
-  const initialAlerts = await getSocialAlertsWithStats(supabase, userId);
-  return <ModernDashboard userId={userId} initialAlerts={initialAlerts} />;
+  const [initialAlerts, initialPriceAlerts, initialWalletAlerts, plan, alertCount] =
+    await Promise.all([
+      getSocialAlertsWithStats(supabase, userId),
+      getPriceAlertsWithStats(supabase, userId),
+      getWalletAlertsWithStats(supabase, userId),
+      getUserPlan(userId),
+      getUserAlertCount(userId),
+    ]);
+  const limits = getPlanLimits(plan);
+  return (
+    <ModernDashboard
+      userId={userId}
+      initialAlerts={initialAlerts}
+      initialPriceAlerts={initialPriceAlerts}
+      initialWalletAlerts={initialWalletAlerts}
+      planInfo={{ plan: limits.label, usage: alertCount, limit: limits.maxAlerts }}
+    />
+  );
 }
 
 export default async function DashboardPage() {

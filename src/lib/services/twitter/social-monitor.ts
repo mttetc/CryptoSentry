@@ -4,6 +4,13 @@ import type { SocialAlertRow } from './types';
 
 const DEFAULT_POLL_INTERVAL_MS = 120_000; // 2 minutes
 const ALERT_REFRESH_INTERVAL_MS = 600_000; // Refresh alerts every 10 min
+const MIN_STAGGER_MS = 2000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 export class SocialMonitor {
   private alerts: SocialAlertRow[] = [];
@@ -45,7 +52,7 @@ export class SocialMonitor {
   }
 
   getStatus() {
-    const accounts = this.getUniqueAccounts();
+    const accounts = this.getUniqueAccountsSorted();
     return {
       isMonitoring: this.isMonitoring,
       activeAccounts: accounts.length,
@@ -53,10 +60,16 @@ export class SocialMonitor {
     };
   }
 
-  private getUniqueAccounts(): string[] {
-    return [
-      ...new Set(this.alerts.filter((a) => a.platform === 'twitter').map((a) => a.account)),
-    ].toSorted();
+  // Returns unique accounts sorted by priority (most-followed first)
+  private getUniqueAccountsSorted(): string[] {
+    const accountCounts = new Map<string, number>();
+    for (const alert of this.alerts) {
+      if (alert.platform === 'twitter') {
+        accountCounts.set(alert.account, (accountCounts.get(alert.account) ?? 0) + 1);
+      }
+    }
+
+    return [...accountCounts.entries()].toSorted((a, b) => b[1] - a[1]).map(([account]) => account);
   }
 
   private schedulePoll(delayMs: number): void {
@@ -73,19 +86,30 @@ export class SocialMonitor {
       return;
     }
 
-    const accounts = this.getUniqueAccounts();
-    const interval = DEFAULT_POLL_INTERVAL_MS;
+    const accounts = this.getUniqueAccountsSorted();
 
     if (accounts.length === 0) {
       this.schedulePoll(10_000);
       return;
     }
 
-    console.warn(`[SocialMonitor] Polling ${accounts.length} accounts...`);
+    // Stagger polls: spread evenly across the interval, min 2s between each
+    const staggerMs = Math.max(
+      MIN_STAGGER_MS,
+      Math.floor(DEFAULT_POLL_INTERVAL_MS / accounts.length)
+    );
+
+    console.warn(`[SocialMonitor] Polling ${accounts.length} accounts (${staggerMs}ms stagger)...`);
 
     for (const username of accounts) {
       if (!this.isMonitoring) {
         return;
+      }
+
+      // Skip if rate-limited for this account
+      if (rettiwtClient.isBackedOff(username)) {
+        console.warn(`[SocialMonitor] Skipping @${username} (rate-limited)`);
+        continue;
       }
 
       try {
@@ -103,9 +127,14 @@ export class SocialMonitor {
       } catch (error) {
         console.error(`[SocialMonitor] Error polling @${username}:`, error);
       }
+
+      // Stagger: wait between accounts to avoid rate limiting
+      if (accounts.indexOf(username) < accounts.length - 1) {
+        await sleep(staggerMs);
+      }
     }
 
-    this.schedulePoll(interval);
+    this.schedulePoll(DEFAULT_POLL_INTERVAL_MS);
   }
 }
 

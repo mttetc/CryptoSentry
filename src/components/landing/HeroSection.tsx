@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button';
 
 export default function HeroSection() {
   return (
-    <section className="relative overflow-hidden pb-24 pt-32 md:pt-44">
-      <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2">
-        <div className="h-[600px] w-[800px] rounded-full bg-primary/5 blur-[120px]" />
+    <section className="relative overflow-hidden pt-32 pb-24 md:pt-44">
+      <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2">
+        <div className="bg-primary/5 h-[600px] w-[800px] rounded-full blur-[120px]" />
       </div>
 
       <div className="relative mx-auto flex max-w-5xl flex-col items-center gap-16 px-6 text-center lg:flex-row lg:items-start lg:gap-20 lg:text-left">
@@ -22,25 +22,25 @@ export default function HeroSection() {
         >
           <motion.h1
             variants={fadeInUp}
-            className="text-4xl font-semibold leading-tight tracking-tight md:text-5xl md:leading-tight"
+            className="text-4xl leading-tight font-semibold tracking-tight md:text-5xl md:leading-tight"
           >
-            Your phone rings
+            Crypto intelligence
             <br />
-            <span className="text-primary">before Twitter loads.</span>
+            <span className="text-primary">that calls you first.</span>
           </motion.h1>
           <motion.p
             variants={fadeInUp}
-            className="mt-6 text-lg leading-relaxed text-muted-foreground"
+            className="text-muted-foreground mt-6 text-lg leading-relaxed"
           >
-            CryptoSentry watches crypto influencers on X and <strong className="text-foreground">calls you on Telegram</strong> when they mention a token you track. Your phone actually rings.
+            CryptoSentry monitors influencers, prices, and whale wallets. Then{' '}
+            <strong className="text-foreground">calls you on Telegram</strong> before the market
+            moves. AI-powered sentiment analysis, multi-channel alerts, under 30 seconds.
           </motion.p>
           <motion.div variants={fadeInUp} className="mt-8 flex items-center gap-4">
             <Button asChild size="lg">
-              <NextLink href="/auth?register=true">
-                Set up your first alert &rarr;
-              </NextLink>
+              <NextLink href="/auth?register=true">Set up your first alert &rarr;</NextLink>
             </Button>
-            <span className="text-xs text-muted-foreground">Free &middot; No credit card</span>
+            <span className="text-muted-foreground text-xs">Free &middot; No credit card</span>
           </motion.div>
         </motion.div>
 

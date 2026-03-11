@@ -5,7 +5,7 @@ import { fadeInUp } from './animations';
 import { Separator } from '@/components/ui/separator';
 
 const stats = [
-  { label: 'Any public X account', value: 'Unlimited' },
+  { label: 'to start', value: 'Free' },
   { label: 'alert to call', value: '<30s' },
   { label: 'to set up', value: '1 min' },
 ];

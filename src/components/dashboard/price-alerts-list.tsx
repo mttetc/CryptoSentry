@@ -16,6 +16,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { SpotlightCard } from '@/components/ui/spotlight';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   TrendingUp,
   TrendingDown,
@@ -24,13 +32,12 @@ import {
   Play,
   DollarSign,
   CheckCircle,
-  Clock,
   Target,
-  Repeat,
-  Zap,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { updatePriceAlert, deletePriceAlert } from '@/actions/alerts';
+import { formatDistance } from 'date-fns';
 import { toast } from 'sonner';
 import type { PriceAlertWithStats } from '@/types/alerts';
 
@@ -45,7 +52,7 @@ const cardTransition = { duration: 0.25, ease: 'easeOut' as const };
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -53,7 +60,9 @@ function formatDateTime(iso: string): string {
   });
 }
 
-const DIRECTION_CYCLE: ('exact' | 'above' | 'below')[] = ['exact', 'above', 'below'];
+function formatPrice(n: number): string {
+  return n.toLocaleString('en-US');
+}
 
 function directionLabel(d: string): string {
   if (d === 'exact') {
@@ -73,19 +82,26 @@ function DirectionIconComponent({ direction }: { direction: string }) {
 }
 
 function PriceAlertCard({
-  alert,
+  alert: initialAlert,
   livePrice,
   onDelete,
   onToggle,
-  onUpdate,
 }: {
   alert: PriceAlertWithStats;
   livePrice?: number;
   onDelete: (id: string) => void;
   onToggle: (id: string) => void;
-  onUpdate: (id: string, patch: Partial<PriceAlertWithStats>) => void;
 }) {
+  const [alert, setAlert] = useState(initialAlert);
   const [isToggling, setIsToggling] = useState(false);
+
+  // Sync parent changes (e.g. after refresh)
+  if (
+    initialAlert.is_active !== alert.is_active ||
+    initialAlert.triggered_at !== alert.triggered_at
+  ) {
+    setAlert(initialAlert);
+  }
 
   const handleDelete = async () => {
     onDelete(alert.id);
@@ -122,33 +138,44 @@ function PriceAlertCard({
     }
   };
 
-  const cycleDirection = async () => {
-    const currentIdx = DIRECTION_CYCLE.indexOf(alert.direction as 'exact' | 'above' | 'below');
-    const nextDirection = DIRECTION_CYCLE[(currentIdx + 1) % DIRECTION_CYCLE.length];
-    onUpdate(alert.id, { direction: nextDirection });
+  const changeDirection = async (nextDirection: 'exact' | 'above' | 'below') => {
+    const prev = {
+      direction: alert.direction,
+      last_triggered_at: alert.last_triggered_at,
+      triggered_at: alert.triggered_at,
+      is_active: alert.is_active,
+    };
+    setAlert((a) => ({
+      ...a,
+      direction: nextDirection,
+      last_triggered_at: null,
+      triggered_at: null,
+      is_active: true,
+    }));
     try {
       const result = await updatePriceAlert({ id: alert.id, direction: nextDirection });
       if (!result.success) {
-        onUpdate(alert.id, { direction: alert.direction });
+        setAlert((a) => ({ ...a, ...prev }));
         toast.error('Failed to update direction');
       }
     } catch {
-      onUpdate(alert.id, { direction: alert.direction });
+      setAlert((a) => ({ ...a, ...prev }));
     }
   };
 
-  const toggleRecurring = async () => {
-    const newRecurring = !alert.recurring;
-    onUpdate(alert.id, { recurring: newRecurring });
-    toast.success(newRecurring ? 'Alert will repeat' : 'Alert will fire once');
+  const changeRecurring = async (next: boolean) => {
+    const prevRecurring = alert.recurring;
+    const prevLastTriggered = alert.last_triggered_at;
+    setAlert((a) => ({ ...a, recurring: next, last_triggered_at: null }));
+    toast.success(next ? 'Alert will repeat' : 'Alert will fire once');
     try {
-      const result = await updatePriceAlert({ id: alert.id, recurring: newRecurring });
+      const result = await updatePriceAlert({ id: alert.id, recurring: next });
       if (!result.success) {
-        onUpdate(alert.id, { recurring: alert.recurring });
+        setAlert((a) => ({ ...a, recurring: prevRecurring, last_triggered_at: prevLastTriggered }));
         toast.error('Failed to update');
       }
     } catch {
-      onUpdate(alert.id, { recurring: alert.recurring });
+      setAlert((a) => ({ ...a, recurring: prevRecurring, last_triggered_at: prevLastTriggered }));
     }
   };
 
@@ -169,6 +196,15 @@ function PriceAlertCard({
           {/* Row 1: Symbol + badges + actions */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
+              {alert.logo && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={alert.logo}
+                  alt=""
+                  className="h-5 w-5 rounded-full"
+                  referrerPolicy="no-referrer"
+                />
+              )}
               <span
                 className={cn(
                   'font-mono text-sm font-semibold uppercase',
@@ -273,7 +309,7 @@ function PriceAlertCard({
                 <>
                   Price {directionLabel(alert.direction)}{' '}
                   <span className="font-mono font-medium line-through">
-                    ${alert.target_price.toLocaleString()}
+                    ${formatPrice(alert.target_price)}
                   </span>
                   {alert.triggered_at && (
                     <>
@@ -289,13 +325,13 @@ function PriceAlertCard({
                 <>
                   Alert when price {directionLabel(alert.direction)}{' '}
                   <span className="text-foreground font-mono font-medium">
-                    ${alert.target_price.toLocaleString()}
+                    ${formatPrice(alert.target_price)}
                   </span>
                   {livePrice !== undefined && (
                     <>
                       {' '}
                       <span className="text-muted-foreground/60">&middot;</span>{' '}
-                      <span className="font-mono text-xs">Now: ${livePrice.toLocaleString()}</span>
+                      <span className="font-mono text-xs">Now: ${formatPrice(livePrice)}</span>
                     </>
                   )}
                   {lastTriggered && (
@@ -312,40 +348,51 @@ function PriceAlertCard({
             </span>
           </div>
 
-          {/* Row 3: Inline toggles + created at */}
+          {/* Row 3: Direction select + recurring switch + created at */}
           <div className="mt-2 flex items-center gap-3">
             {!isTriggered && (
               <>
-                <button
-                  type="button"
-                  onClick={cycleDirection}
-                  className="text-muted-foreground hover:text-foreground flex items-center gap-1 font-mono text-[10px] transition-colors"
-                  title="Click to cycle: reaches / above / below"
+                <Select
+                  value={alert.direction}
+                  onValueChange={(v) => {
+                    changeDirection(v as 'exact' | 'above' | 'below');
+                  }}
                 >
-                  <DirectionIconComponent direction={alert.direction} />
-                  {directionLabel(alert.direction)}
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleRecurring}
-                  className={cn(
-                    'flex items-center gap-1 font-mono text-[10px] transition-colors',
-                    alert.recurring ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                  )}
-                  title={
-                    alert.recurring
-                      ? 'Recurring — click for one-shot'
-                      : 'One-shot — click for recurring'
-                  }
-                >
-                  {alert.recurring ? <Repeat className="h-3 w-3" /> : <Zap className="h-3 w-3" />}
-                  {alert.recurring ? 'repeat' : 'once'}
-                </button>
+                  <SelectTrigger className="h-6 w-[110px] text-[11px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="exact">
+                      <span className="flex items-center gap-1.5">
+                        <Target className="h-3 w-3" /> reaches
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="above">
+                      <span className="flex items-center gap-1.5">
+                        <TrendingUp className="h-3 w-3" /> above
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="below">
+                      <span className="flex items-center gap-1.5">
+                        <TrendingDown className="h-3 w-3" /> below
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <label className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground text-[11px]">
+                    {alert.recurring ? 'repeat' : 'once'}
+                  </span>
+                  <Switch
+                    checked={alert.recurring}
+                    onCheckedChange={changeRecurring}
+                    className="scale-75"
+                  />
+                </label>
               </>
             )}
-            <span className="text-muted-foreground/50 ml-auto flex items-center gap-1 font-mono text-[10px]">
-              <Clock className="h-2.5 w-2.5" />
-              {formatDateTime(alert.created_at)}
+            <span className="text-muted-foreground/50 ml-auto font-mono text-[10px]">
+              {formatDistance(new Date(alert.created_at), new Date(), { addSuffix: true })}
             </span>
           </div>
         </div>
@@ -354,56 +401,43 @@ function PriceAlertCard({
   );
 }
 
-function EmptyState() {
+function AddPriceAlertCard() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="rounded-xl border border-dashed p-12 text-center"
-    >
-      <div className="bg-primary/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
-        <DollarSign className="text-primary h-6 w-6" />
-      </div>
-      <p className="text-muted-foreground text-sm">
-        No price alerts. Track token prices and get notified when they cross your targets.
-      </p>
+    <motion.div layoutId="add-price-alert-card" layout transition={cardTransition}>
+      <button
+        type="button"
+        onClick={() => {
+          window.dispatchEvent(new CustomEvent('open-create-price-alert'));
+        }}
+        className="border-primary/20 hover:border-primary/40 hover:bg-primary/5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-6 transition-colors"
+      >
+        <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
+          <Plus className="text-primary h-4 w-4" />
+        </div>
+        <span className="text-muted-foreground text-sm font-medium">Add alert</span>
+      </button>
     </motion.div>
   );
 }
 
 export function PriceAlertsList({ alerts, livePrices, onDelete, onToggle }: PriceAlertsListProps) {
-  const [localAlerts, setLocalAlerts] = useState(alerts);
-  const deferredAlerts = useDeferredValue(localAlerts);
-
-  // Sync from parent
-  if (alerts !== localAlerts && JSON.stringify(alerts) !== JSON.stringify(localAlerts)) {
-    setLocalAlerts(alerts);
-  }
-
-  const handleUpdate = (id: string, patch: Partial<PriceAlertWithStats>) => {
-    setLocalAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
-  };
+  const deferredAlerts = useDeferredValue(alerts);
 
   return (
     <LayoutGroup>
       <div className="flex flex-col gap-2">
-        {deferredAlerts.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <AnimatePresence mode="popLayout">
-            {deferredAlerts.map((alert) => (
-              <PriceAlertCard
-                key={alert.id}
-                alert={alert}
-                livePrice={livePrices?.[alert.coingecko_id]}
-                onDelete={onDelete}
-                onToggle={onToggle}
-                onUpdate={handleUpdate}
-              />
-            ))}
-          </AnimatePresence>
-        )}
+        <AnimatePresence mode="popLayout">
+          {deferredAlerts.map((alert) => (
+            <PriceAlertCard
+              key={alert.id}
+              alert={alert}
+              livePrice={livePrices?.[alert.binance_symbol]}
+              onDelete={onDelete}
+              onToggle={onToggle}
+            />
+          ))}
+        </AnimatePresence>
+        <AddPriceAlertCard />
       </div>
     </LayoutGroup>
   );

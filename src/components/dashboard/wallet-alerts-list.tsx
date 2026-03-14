@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { SpotlightCard } from '@/components/ui/spotlight';
-import { Wallet, Trash2, Pause, Play } from 'lucide-react';
+import { Trash2, Pause, Play, Plus } from 'lucide-react';
 import { updateWalletAlert, deleteWalletAlert } from '@/actions/wallets';
 import { formatDistance } from 'date-fns';
 import { useNow } from '@/hooks/use-now';
@@ -182,26 +182,32 @@ function WalletAlertCard({
               )}
             </div>
           </div>
+
+          {/* Row 3: Created at */}
+          <div className="text-muted-foreground/50 mt-2 font-mono text-[10px]">
+            {formatDistance(new Date(alert.created_at), now, { addSuffix: true })}
+          </div>
         </div>
       </SpotlightCard>
     </motion.div>
   );
 }
 
-function EmptyState() {
+function AddWalletAlertCard() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="rounded-xl border border-dashed p-12 text-center"
-    >
-      <div className="bg-primary/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
-        <Wallet className="text-primary h-6 w-6" />
-      </div>
-      <p className="text-muted-foreground text-sm">
-        No wallet alerts. Monitor whale wallets and get notified on large transfers.
-      </p>
+    <motion.div layoutId="add-wallet-alert-card" layout transition={cardTransition}>
+      <button
+        type="button"
+        onClick={() => {
+          window.dispatchEvent(new CustomEvent('open-create-wallet-alert'));
+        }}
+        className="border-primary/20 hover:border-primary/40 hover:bg-primary/5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-6 transition-colors"
+      >
+        <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
+          <Plus className="text-primary h-4 w-4" />
+        </div>
+        <span className="text-muted-foreground text-sm font-medium">Add alert</span>
+      </button>
     </motion.div>
   );
 }
@@ -212,20 +218,12 @@ export function WalletAlertsList({ alerts, onDelete, onToggle }: WalletAlertsLis
   return (
     <LayoutGroup>
       <div className="flex flex-col gap-2">
-        {deferredAlerts.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <AnimatePresence mode="popLayout">
-            {deferredAlerts.map((alert) => (
-              <WalletAlertCard
-                key={alert.id}
-                alert={alert}
-                onDelete={onDelete}
-                onToggle={onToggle}
-              />
-            ))}
-          </AnimatePresence>
-        )}
+        <AnimatePresence mode="popLayout">
+          {deferredAlerts.map((alert) => (
+            <WalletAlertCard key={alert.id} alert={alert} onDelete={onDelete} onToggle={onToggle} />
+          ))}
+        </AnimatePresence>
+        <AddWalletAlertCard />
       </div>
     </LayoutGroup>
   );

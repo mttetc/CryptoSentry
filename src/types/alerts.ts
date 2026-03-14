@@ -52,7 +52,8 @@ export interface PriceAlertWithStats {
   id: string;
   user_id: string;
   symbol: string;
-  coingecko_id: string;
+  binance_symbol: string;
+  logo: string;
   target_price: number;
   direction: 'above' | 'below' | 'exact';
   is_active: boolean;

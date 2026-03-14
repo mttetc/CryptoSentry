@@ -14,7 +14,7 @@ import { addPosition, updatePosition, removePosition } from '@/actions/portfolio
 interface PortfolioPosition {
   id: string;
   symbol: string;
-  coingecko_id: string;
+  binance_symbol: string;
   amount: number;
   avg_buy_price: number;
 }
@@ -30,7 +30,7 @@ function castPosition(raw: unknown): PortfolioPosition {
   return {
     id: String(obj.id),
     symbol: String(obj.symbol),
-    coingecko_id: String(obj.coingecko_id),
+    binance_symbol: String(obj.binance_symbol),
     amount: Number(obj.amount),
     avg_buy_price: Number(obj.avg_buy_price),
   };
@@ -40,7 +40,7 @@ interface CoinSearchResult {
   id: string;
   symbol: string;
   name: string;
-  thumb: string;
+  logo?: string;
 }
 
 // --- Component ---
@@ -126,7 +126,7 @@ export function PortfolioManager({ initialPositions }: PortfolioManagerProps) {
     try {
       const result = await addPosition({
         symbol: selectedCoin.symbol.toUpperCase(),
-        coingeckoId: selectedCoin.id,
+        binanceSymbol: selectedCoin.id,
         amount: amountNum,
         avgBuyPrice: priceNum,
       });
@@ -141,7 +141,7 @@ export function PortfolioManager({ initialPositions }: PortfolioManagerProps) {
         {
           id: crypto.randomUUID(),
           symbol: selectedCoin.symbol.toUpperCase(),
-          coingecko_id: selectedCoin.id,
+          binance_symbol: selectedCoin.id,
           amount: amountNum,
           avg_buy_price: priceNum,
         },
@@ -271,12 +271,15 @@ export function PortfolioManager({ initialPositions }: PortfolioManagerProps) {
                             className="hover:bg-accent flex cursor-pointer items-center gap-2 px-3 py-2 text-sm"
                             onClick={() => handleSelectCoin(coin)}
                           >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={coin.thumb}
-                              alt={coin.name}
-                              className="h-5 w-5 rounded-full"
-                            />
+                            {coin.logo && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={coin.logo}
+                                alt=""
+                                className="h-5 w-5 rounded-full"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
                             <span>{coin.name}</span>
                             <span className="text-muted-foreground">
                               {coin.symbol.toUpperCase()}

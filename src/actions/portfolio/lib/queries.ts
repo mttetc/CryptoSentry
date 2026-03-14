@@ -4,7 +4,7 @@ export interface PortfolioPosition {
   id: string;
   user_id: string;
   symbol: string;
-  coingecko_id: string;
+  binance_symbol: string;
   amount: number;
   avg_buy_price: number;
   created_at: string;

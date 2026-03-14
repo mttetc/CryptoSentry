@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/api/auth';
 import { walletAlertSchema, updateWalletAlertSchema } from '../schemas';
 import { checkWalletAlertLimit } from '@/lib/config/plans';
-import { walletMonitor } from '@/lib/services/blockchain/wallet-monitor';
 import type { z } from 'zod';
 import type { ActionState } from '@/types/actions';
 
@@ -70,11 +69,7 @@ export async function createWalletAlert(
       throw error;
     }
 
-    // Side effects: refresh monitor + revalidate cache
-    await Promise.allSettled([
-      walletMonitor.refreshAlerts(),
-      Promise.resolve(revalidatePath('/dashboard')),
-    ]);
+    revalidatePath('/dashboard');
 
     return { success: true };
   } catch (error) {

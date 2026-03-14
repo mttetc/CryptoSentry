@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'motion/react';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SocialAlertWithStats, AlertTweet } from '@/types/alerts';
@@ -47,11 +48,11 @@ function collectFeedItems(alerts: SocialAlertWithStats[]): FeedItem[] {
 
   return items
     .toSorted((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 6);
+    .slice(0, 50);
 }
 
 function collectTriggerItems(triggers: TriggerEvent[]): TriggerFeedItem[] {
-  return triggers.slice(0, 6).map((t, i) => {
+  return triggers.slice(0, 50).map((t, i) => {
     if (t.type === 'price:triggered') {
       return {
         id: `trigger-price-${t.alertId}-${i}`,
@@ -150,7 +151,7 @@ function FeedEntry({ item, isCalling }: { item: FeedItem; isCalling: boolean }) 
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 function TriggerFeedEntry({ item }: { item: TriggerFeedItem }) {
@@ -200,24 +201,26 @@ export function LiveFeed({
         <span className="text-muted-foreground font-mono text-sm">Live Feed</span>
       </div>
       {hasContent ? (
-        <div className="px-4 py-3">
-          <AnimatePresence mode="popLayout">
-            {triggerItems.map((item) => (
-              <TriggerFeedEntry key={item.id} item={item} />
-            ))}
-            {items.map((item) => (
-              <FeedEntry
-                key={item.id}
-                item={item}
-                isCalling={
-                  item.callEnabled &&
-                  item.matchedKeywords.length > 0 &&
-                  flashAlertIds.has(item.alertId)
-                }
-              />
-            ))}
-          </AnimatePresence>
-        </div>
+        <ScrollArea className="h-[400px]">
+          <div className="px-4 py-3">
+            <AnimatePresence mode="popLayout">
+              {triggerItems.map((item) => (
+                <TriggerFeedEntry key={item.id} item={item} />
+              ))}
+              {items.map((item) => (
+                <FeedEntry
+                  key={item.id}
+                  item={item}
+                  isCalling={
+                    item.callEnabled &&
+                    item.matchedKeywords.length > 0 &&
+                    flashAlertIds.has(item.alertId)
+                  }
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        </ScrollArea>
       ) : (
         <div className="flex flex-col items-center gap-3 px-4 py-10">
           <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-full">

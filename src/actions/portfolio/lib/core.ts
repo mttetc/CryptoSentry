@@ -9,22 +9,17 @@ import type { ActionState } from '@/types/actions';
 
 // --- Pure functions ---
 
-function buildPositionRow(
-  userId: string,
-  validated: z.infer<typeof portfolioPositionSchema>
-) {
+function buildPositionRow(userId: string, validated: z.infer<typeof portfolioPositionSchema>) {
   return {
     user_id: userId,
     symbol: validated.symbol,
-    coingecko_id: validated.coingeckoId,
+    binance_symbol: validated.binanceSymbol,
     amount: validated.amount,
     avg_buy_price: validated.avgBuyPrice,
   };
 }
 
-function buildUpdateData(
-  validated: z.infer<typeof updatePositionSchema>
-): Record<string, unknown> {
+function buildUpdateData(validated: z.infer<typeof updatePositionSchema>): Record<string, unknown> {
   const data: Record<string, unknown> = {};
 
   if (validated.amount !== undefined) {
@@ -132,10 +127,7 @@ export async function removePosition(id: string): Promise<ActionState> {
       return { success: false, error: 'Position not found' };
     }
 
-    const { error } = await supabase
-      .from('user_portfolios')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('user_portfolios').delete().eq('id', id);
 
     if (error) {
       throw error;
@@ -149,9 +141,7 @@ export async function removePosition(id: string): Promise<ActionState> {
   }
 }
 
-export async function getPortfolio(): Promise<
-  ActionState & { positions?: unknown[] }
-> {
+export async function getPortfolio(): Promise<ActionState & { positions?: unknown[] }> {
   try {
     const { supabase, userId } = await requireAuth();
 

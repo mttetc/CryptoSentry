@@ -290,7 +290,12 @@ function CompactAlertCard({
             />
           </div>
 
-          {/* Row 4: Expandable recent matches */}
+          {/* Row 4: Created at */}
+          <div className="text-muted-foreground/50 mt-2 flex items-center gap-1 font-mono text-[10px]">
+            Created {formatDistance(new Date(alert.created_at), now, { addSuffix: true })}
+          </div>
+
+          {/* Row 5: Expandable recent matches */}
           {matchCount > 0 && (
             <div className="mt-2">
               <button

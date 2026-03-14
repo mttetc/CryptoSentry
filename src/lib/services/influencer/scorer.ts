@@ -1,37 +1,17 @@
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
-import { fetchPrices } from '@/lib/services/crypto/coingecko';
+import { cryptoProvider } from '@/lib/services/crypto';
 import { detectTokens } from './token-detector';
 
 const PROCESS_INTERVAL_MS = 300_000; // 5 minutes
 
-// Map common token symbols to CoinGecko IDs
-const SYMBOL_TO_COINGECKO: Record<string, string> = {
-  BTC: 'bitcoin',
-  ETH: 'ethereum',
-  SOL: 'solana',
-  DOGE: 'dogecoin',
-  ADA: 'cardano',
-  XRP: 'ripple',
-  DOT: 'polkadot',
-  AVAX: 'avalanche-2',
-  MATIC: 'matic-network',
-  LINK: 'chainlink',
-  UNI: 'uniswap',
-  AAVE: 'aave',
-  ATOM: 'cosmos',
-  NEAR: 'near',
-  ARB: 'arbitrum',
-  OP: 'optimism',
-};
-
-function symbolToCoingeckoId(symbol: string): string | undefined {
-  return SYMBOL_TO_COINGECKO[symbol.toUpperCase()];
+function symbolToBinancePair(symbol: string): string {
+  return `${symbol.toUpperCase()}USDT`;
 }
 
 interface StaleEvent {
   id: string;
   token_symbol: string;
-  coingecko_id: string;
+  binance_symbol: string;
   price_at_mention: number;
   created_at: string;
   price_after_1h: number | null;
@@ -73,7 +53,9 @@ export class InfluencerScorer {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { data: stale1h } = await supabase
       .from('influencer_events')
-      .select('id, token_symbol, coingecko_id, price_at_mention, created_at, price_after_1h, price_after_24h')
+      .select(
+        'id, token_symbol, binance_symbol, price_at_mention, created_at, price_after_1h, price_after_24h'
+      )
       .lt('created_at', oneHourAgo)
       .is('price_after_1h', null)
       .limit(50);
@@ -86,7 +68,9 @@ export class InfluencerScorer {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: stale24h } = await supabase
       .from('influencer_events')
-      .select('id, token_symbol, coingecko_id, price_at_mention, created_at, price_after_1h, price_after_24h')
+      .select(
+        'id, token_symbol, binance_symbol, price_at_mention, created_at, price_after_1h, price_after_24h'
+      )
       .lt('created_at', twentyFourHoursAgo)
       .is('price_after_24h', null)
       .not('price_after_1h', 'is', null)
@@ -105,12 +89,11 @@ export class InfluencerScorer {
     events: StaleEvent[],
     priceField: 'price_after_1h' | 'price_after_24h'
   ): Promise<void> {
-    // Collect unique coingecko IDs
-    const uniqueIds = [...new Set(events.map((e) => e.coingecko_id))];
-    const prices = await fetchPrices(uniqueIds);
+    const uniqueSymbols = [...new Set(events.map((e) => e.binance_symbol))];
+    const prices = await cryptoProvider.fetchPrices(uniqueSymbols);
 
     for (const event of events) {
-      const currentPrice = prices[event.coingecko_id];
+      const currentPrice = prices[event.binance_symbol];
       if (currentPrice === undefined) {
         continue;
       }
@@ -121,7 +104,10 @@ export class InfluencerScorer {
         .eq('id', event.id);
 
       if (error) {
-        console.error(`[InfluencerScorer] Failed to update ${priceField} for event ${event.id}:`, error);
+        console.error(
+          `[InfluencerScorer] Failed to update ${priceField} for event ${event.id}:`,
+          error
+        );
       }
     }
   }
@@ -152,12 +138,10 @@ export class InfluencerScorer {
     }
 
     for (const [account, events] of byAccount) {
-      // Calculate accuracy: how many mentions had positive price movement after 24h
       let correctCalls = 0;
       for (const event of events) {
         const priceAtMention = event.price_at_mention as number;
         const priceAfter24h = event.price_after_24h as number;
-        // A "correct" call means price went up after mention (bullish bias for now)
         if (priceAfter24h > priceAtMention) {
           correctCalls += 1;
         }
@@ -165,7 +149,6 @@ export class InfluencerScorer {
 
       const accuracy = events.length > 0 ? correctCalls / events.length : 0;
 
-      // Upsert aggregate score
       const { error } = await supabase.from('influencer_scores').upsert(
         {
           account,
@@ -181,13 +164,9 @@ export class InfluencerScorer {
         console.error(`[InfluencerScorer] Failed to upsert score for ${account}:`, error);
       }
 
-      // Mark events as scored
       const eventIds = events.map((e) => (e as Record<string, unknown>).id);
       if (eventIds.length > 0) {
-        await supabase
-          .from('influencer_events')
-          .update({ scored: true })
-          .in('id', eventIds);
+        await supabase.from('influencer_events').update({ scored: true }).in('id', eventIds);
       }
     }
   }
@@ -208,34 +187,24 @@ export async function captureInfluencerEvent(
     return;
   }
 
-  // Map symbols to CoinGecko IDs, skip unknown tokens
-  const tokenPairs: { symbol: string; coingeckoId: string }[] = [];
-  for (const symbol of tokens) {
-    const coingeckoId = symbolToCoingeckoId(symbol);
-    if (coingeckoId) {
-      tokenPairs.push({ symbol, coingeckoId });
-    }
-  }
+  const tokenPairs = tokens.map((symbol) => ({
+    symbol,
+    binanceSymbol: symbolToBinancePair(symbol),
+  }));
 
-  if (tokenPairs.length === 0) {
-    return;
-  }
-
-  // Fetch current prices for all detected tokens
-  const coingeckoIds = tokenPairs.map((t) => t.coingeckoId);
-  const prices = await fetchPrices(coingeckoIds);
+  const binanceSymbols = tokenPairs.map((t) => t.binanceSymbol);
+  const prices = await cryptoProvider.fetchPrices(binanceSymbols);
 
   const supabase = createServiceSupabaseClient();
 
-  // Insert one event per token mentioned
   const inserts = tokenPairs
-    .filter((t) => prices[t.coingeckoId] !== undefined)
+    .filter((t) => prices[t.binanceSymbol] !== undefined)
     .map((t) => ({
       account,
       tweet_id: tweetId,
       token_symbol: t.symbol,
-      coingecko_id: t.coingeckoId,
-      price_at_mention: prices[t.coingeckoId],
+      binance_symbol: t.binanceSymbol,
+      price_at_mention: prices[t.binanceSymbol],
       created_at: new Date().toISOString(),
     }));
 

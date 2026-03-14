@@ -17,12 +17,12 @@ interface CoinResult {
   id: string;
   symbol: string;
   name: string;
-  thumb: string;
+  logo?: string;
 }
 
 const priceAlertFormSchema = z.object({
   symbol: z.string().min(1, 'Coin is required'),
-  coingeckoId: z.string().min(1, 'Coin selection is required'),
+  binanceSymbol: z.string().min(1, 'Coin selection is required'),
   targetPrice: z.number().positive('Price must be positive'),
 });
 
@@ -37,13 +37,14 @@ export function CreatePriceAlertForm({ onClose }: CreatePriceAlertFormProps) {
   const [results, setResults] = useState<CoinResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedLogo, setSelectedLogo] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const form = useForm<PriceAlertFormData>({
     resolver: zodResolver(priceAlertFormSchema),
     defaultValues: {
       symbol: '',
-      coingeckoId: '',
+      binanceSymbol: '',
       targetPrice: undefined,
     },
   });
@@ -85,23 +86,27 @@ export function CreatePriceAlertForm({ onClose }: CreatePriceAlertFormProps) {
 
   const selectCoin = (coin: CoinResult) => {
     form.setValue('symbol', coin.symbol.toUpperCase());
-    form.setValue('coingeckoId', coin.id);
+    form.setValue('binanceSymbol', coin.id);
     form.clearErrors('symbol');
-    form.clearErrors('coingeckoId');
+    form.clearErrors('binanceSymbol');
+    setSelectedLogo(coin.logo ?? '');
     setQuery(`${coin.name} (${coin.symbol.toUpperCase()})`);
     setShowDropdown(false);
   };
 
   const onSubmit = async (data: PriceAlertFormData) => {
+    const logo = selectedLogo;
     toast.success(`Tracking ${data.symbol} price`);
     form.reset();
     setQuery('');
+    setSelectedLogo('');
     onClose?.();
 
     try {
       const result = await createPriceAlert({
         symbol: data.symbol,
-        coingeckoId: data.coingeckoId,
+        binanceSymbol: data.binanceSymbol,
+        logo,
         targetPrice: data.targetPrice,
         direction: 'exact',
         recurring: true,
@@ -123,29 +128,42 @@ export function CreatePriceAlertForm({ onClose }: CreatePriceAlertFormProps) {
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
       {/* Coin search */}
       <Controller
-        name="coingeckoId"
+        name="binanceSymbol"
         control={form.control}
         render={({ fieldState }) => (
           <Field data-invalid={fieldState.invalid}>
             <FieldLabel>Coin</FieldLabel>
             <div ref={dropdownRef} className="relative">
-              <Input
-                placeholder="Search Bitcoin, Ethereum..."
-                value={query}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setQuery(val);
-                  form.setValue('coingeckoId', '');
-                  form.setValue('symbol', '');
-                  debouncedSearch(val);
-                }}
-                onFocus={() => {
-                  if (results.length > 0) {
-                    setShowDropdown(true);
-                  }
-                }}
-                aria-invalid={fieldState.invalid}
-              />
+              <div className="relative flex items-center">
+                {selectedLogo && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selectedLogo}
+                    alt=""
+                    className="absolute left-2.5 h-5 w-5 rounded-full"
+                    referrerPolicy="no-referrer"
+                  />
+                )}
+                <Input
+                  className={selectedLogo ? 'pl-9' : ''}
+                  placeholder="Search Bitcoin, Ethereum..."
+                  value={query}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setQuery(val);
+                    setSelectedLogo('');
+                    form.setValue('binanceSymbol', '');
+                    form.setValue('symbol', '');
+                    debouncedSearch(val);
+                  }}
+                  onFocus={() => {
+                    if (results.length > 0) {
+                      setShowDropdown(true);
+                    }
+                  }}
+                  aria-invalid={fieldState.invalid}
+                />
+              </div>
               {isSearching && (
                 <div className="absolute top-1/2 right-3 -translate-y-1/2">
                   <Spinner className="size-3.5" />
@@ -162,14 +180,17 @@ export function CreatePriceAlertForm({ onClose }: CreatePriceAlertFormProps) {
                       )}
                       onClick={() => selectCoin(coin)}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={coin.thumb}
-                        alt=""
-                        className="h-5 w-5 rounded-full"
-                        width={20}
-                        height={20}
-                      />
+                      {coin.logo && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={coin.logo}
+                          alt=""
+                          className="h-5 w-5 rounded-full"
+                          width={20}
+                          height={20}
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
                       <span className="font-medium">{coin.name}</span>
                       <span className="text-muted-foreground font-mono text-xs uppercase">
                         {coin.symbol}
@@ -215,7 +236,7 @@ export function CreatePriceAlertForm({ onClose }: CreatePriceAlertFormProps) {
       <Button
         type="submit"
         className="w-full"
-        disabled={isSubmitting || !form.watch('coingeckoId')}
+        disabled={isSubmitting || !form.watch('binanceSymbol')}
       >
         {isSubmitting ? (
           <>

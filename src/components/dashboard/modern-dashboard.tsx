@@ -116,11 +116,16 @@ export function ModernDashboard({
   const plan = planInfo?.plan ?? 'Free';
 
   // SSE connection
-  const { connected: sseConnected } = useAlertStream({
+  useAlertStream({
     onPriceUpdate: (data) => {
       setLivePrices(data.prices);
     },
     onPriceTriggered: (data) => {
+      // Ignore stale triggers (direction changed since server evaluated)
+      const matchingAlert = priceAlerts.find((a) => a.id === data.alertId);
+      if (!matchingAlert || matchingAlert.direction !== data.direction) {
+        return;
+      }
       setRecentTriggers((prev) => [data, ...prev].slice(0, 20));
       playAlertSound();
       refreshPriceAlerts();
@@ -183,7 +188,7 @@ export function ModernDashboard({
     };
   }, []);
 
-  // Social polling (always on — SSE doesn't cover social)
+  // Social polling only — price/whale handled by SSE/WebSocket
   const hasActiveAlerts = alerts.some((a) => a.is_active);
 
   useEffect(() => {
@@ -193,17 +198,6 @@ export function ModernDashboard({
     const interval = setInterval(refreshAlerts, 60_000);
     return () => clearInterval(interval);
   }, [hasActiveAlerts, polling]);
-
-  // Price polling fallback — only when SSE is not connected
-  const hasActivePriceAlerts = priceAlerts.some((a) => a.is_active);
-
-  useEffect(() => {
-    if (sseConnected || !hasActivePriceAlerts || !polling) {
-      return;
-    }
-    const interval = setInterval(refreshPriceAlerts, 60_000);
-    return () => clearInterval(interval);
-  }, [hasActivePriceAlerts, polling, sseConnected]);
 
   const accounts = [...new Set(alerts.map((a) => a.account))];
   const filteredAlerts =

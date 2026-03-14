@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { searchCoins } from '@/lib/services/crypto/coingecko';
+import { cryptoProvider } from '@/lib/services/crypto';
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get('q') ?? '';
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ results: [] });
   }
 
-  const results = await searchCoins(query);
+  const results = await cryptoProvider.searchCoins(query);
 
   return NextResponse.json(
     { results },

@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 export const priceAlertSchema = z.object({
   symbol: z.string().min(1, 'Symbol is required'),
-  coingeckoId: z.string().min(1, 'Coin selection is required'),
+  binanceSymbol: z.string().min(1, 'Coin selection is required'),
+  logo: z.string().default(''),
   targetPrice: z.number().positive('Price must be positive'),
   direction: z.enum(['above', 'below', 'exact']).default('exact'),
   recurring: z.boolean().default(true),

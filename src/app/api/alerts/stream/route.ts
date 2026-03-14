@@ -1,23 +1,23 @@
 import type { NextRequest } from 'next/server';
 import { requireAuthFromRequest, AuthError } from '@/lib/api/auth';
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
-import { fetchPrices } from '@/lib/services/crypto/coingecko';
+import { createPriceStream } from '@/lib/services/crypto';
 import { sendUnifiedAlert } from '@/actions/messaging/unified-notifications';
 import type { AlertNotification } from '@/types/notifications';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const PRICE_POLL_INTERVAL_MS = 30_000;
 const HEARTBEAT_INTERVAL_MS = 30_000;
-const RECURRING_COOLDOWN_MS = 5 * 60_000; // 5 min cooldown for recurring alerts
-const EXACT_THRESHOLD = 0.005; // ±0.5% for "exact" direction
+const ALERT_REFRESH_INTERVAL_MS = 30_000;
+const RECURRING_COOLDOWN_MS = 30_000;
+const PRICE_THROTTLE_MS = 5000;
 
 interface PriceAlertRow {
   id: string;
   user_id: string;
   symbol: string;
-  coingecko_id: string;
+  binance_symbol: string;
   target_price: number;
   direction: 'above' | 'below' | 'exact';
   recurring: boolean;
@@ -28,7 +28,9 @@ async function fetchUserPriceAlerts(userId: string): Promise<PriceAlertRow[]> {
   const supabase = createServiceSupabaseClient();
   const { data, error } = await supabase
     .from('price_alerts')
-    .select('id, user_id, symbol, coingecko_id, target_price, direction, recurring, last_triggered_at')
+    .select(
+      'id, user_id, symbol, binance_symbol, target_price, direction, recurring, last_triggered_at'
+    )
     .eq('user_id', userId)
     .eq('is_active', true);
 
@@ -46,7 +48,11 @@ function buildDirectionLabel(direction: string): string {
   return direction === 'above' ? 'risen above' : 'fallen below';
 }
 
-function shouldTriggerAlert(alert: PriceAlertRow, currentPrice: number): boolean {
+function shouldTriggerAlert(
+  alert: PriceAlertRow,
+  currentPrice: number,
+  previousPrice: number | null
+): boolean {
   switch (alert.direction) {
     case 'above': {
       return currentPrice >= alert.target_price;
@@ -55,8 +61,13 @@ function shouldTriggerAlert(alert: PriceAlertRow, currentPrice: number): boolean
       return currentPrice <= alert.target_price;
     }
     case 'exact': {
-      const diff = Math.abs(currentPrice - alert.target_price) / alert.target_price;
-      return diff <= EXACT_THRESHOLD;
+      if (previousPrice === null) {
+        return false;
+      }
+      const target = alert.target_price;
+      const crossedUp = previousPrice < target && currentPrice >= target;
+      const crossedDown = previousPrice > target && currentPrice <= target;
+      return crossedUp || crossedDown;
     }
     default: {
       return false;
@@ -72,16 +83,11 @@ function isInCooldown(alert: PriceAlertRow): boolean {
   return elapsed < RECURRING_COOLDOWN_MS;
 }
 
-/**
- * Fire trigger: for one-shot alerts, mark as triggered + inactive.
- * For recurring alerts, update last_triggered_at only.
- */
 async function consumeTrigger(alert: PriceAlertRow, currentPrice: number): Promise<boolean> {
   const supabase = createServiceSupabaseClient();
   const now = new Date().toISOString();
 
   if (alert.recurring) {
-    // Recurring: just update cooldown timestamp
     const { error } = await supabase
       .from('price_alerts')
       .update({ last_triggered_at: now })
@@ -92,7 +98,6 @@ async function consumeTrigger(alert: PriceAlertRow, currentPrice: number): Promi
       return false;
     }
   } else {
-    // One-shot: mark as triggered and deactivate
     const { data: updated, error: updateError } = await supabase
       .from('price_alerts')
       .update({ triggered_at: now, is_active: false, last_triggered_at: now })
@@ -106,7 +111,6 @@ async function consumeTrigger(alert: PriceAlertRow, currentPrice: number): Promi
     }
   }
 
-  // Persist trigger record
   await supabase.from('alert_triggers').insert({
     alert_id: alert.id,
     user_id: alert.user_id,
@@ -119,7 +123,6 @@ async function consumeTrigger(alert: PriceAlertRow, currentPrice: number): Promi
     },
   });
 
-  // Send notification
   const directionLabel = buildDirectionLabel(alert.direction);
   const notification: AlertNotification = {
     userId: alert.user_id,
@@ -158,6 +161,13 @@ export async function GET(request: NextRequest) {
       const encoder = new TextEncoder();
       let alive = true;
 
+      // Price state
+      const latestPrices = new Map<string, number>();
+      const prevPrices = new Map<string, number>();
+      let alerts: PriceAlertRow[] = [];
+      let lastPricePush = 0;
+      let pricesDirty = false;
+
       function send(event: string, data: unknown) {
         if (!alive) {
           return;
@@ -169,72 +179,89 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      async function pollPrices() {
-        if (!alive) {
+      function flushPrices() {
+        if (!pricesDirty || !alive) {
           return;
         }
+        const now = Date.now();
+        if (now - lastPricePush < PRICE_THROTTLE_MS) {
+          return;
+        }
+        lastPricePush = now;
+        pricesDirty = false;
 
-        try {
-          const alerts = await fetchUserPriceAlerts(userId);
-          if (alerts.length === 0) {
-            return;
+        const prices: Record<string, number> = {};
+        for (const [id, price] of latestPrices) {
+          prices[id] = price;
+        }
+        send('price:update', { type: 'price:update', prices });
+      }
+
+      async function checkTriggers(binanceSymbol: string, currentPrice: number) {
+        const previousPrice = prevPrices.get(binanceSymbol) ?? null;
+        prevPrices.set(binanceSymbol, currentPrice);
+
+        for (const alert of alerts) {
+          if (alert.binance_symbol !== binanceSymbol) {
+            continue;
+          }
+          if (!alert.recurring && alert.last_triggered_at) {
+            continue;
+          }
+          if (isInCooldown(alert)) {
+            continue;
           }
 
-          const uniqueIds = [...new Set(alerts.map((a) => a.coingecko_id))];
-          const prices = await fetchPrices(uniqueIds);
-
-          if (Object.keys(prices).length === 0) {
-            return;
-          }
-
-          // Send live prices to client
-          send('price:update', { type: 'price:update', prices });
-
-          // Check for triggers
-          for (const alert of alerts) {
-            const currentPrice = prices[alert.coingecko_id];
-            if (currentPrice === undefined) {
-              continue;
-            }
-
-            // Skip non-one-shot alerts that already triggered
-            if (!alert.recurring && alert.last_triggered_at) {
-              continue;
-            }
-
-            // Skip recurring alerts in cooldown
-            if (isInCooldown(alert)) {
-              continue;
-            }
-
-            if (shouldTriggerAlert(alert, currentPrice)) {
-              const consumed = await consumeTrigger(alert, currentPrice);
-              if (consumed) {
-                send('price:triggered', {
-                  type: 'price:triggered',
-                  alertId: alert.id,
-                  symbol: alert.symbol,
-                  currentPrice,
-                  targetPrice: alert.target_price,
-                  direction: alert.direction,
-                });
-              }
+          if (shouldTriggerAlert(alert, currentPrice, previousPrice)) {
+            const consumed = await consumeTrigger(alert, currentPrice);
+            if (consumed) {
+              send('price:triggered', {
+                type: 'price:triggered',
+                alertId: alert.id,
+                symbol: alert.symbol,
+                currentPrice,
+                targetPrice: alert.target_price,
+                direction: alert.direction,
+                triggeredAt: new Date().toISOString(),
+              });
+              alerts = await fetchUserPriceAlerts(userId);
             }
           }
-        } catch (error) {
-          console.error('[SSE] Poll error:', error);
         }
       }
 
-      // Initial poll immediately
-      pollPrices();
+      const priceStream = createPriceStream((prices) => {
+        for (const [binanceSymbol, price] of Object.entries(prices)) {
+          latestPrices.set(binanceSymbol, price);
+          pricesDirty = true;
+          checkTriggers(binanceSymbol, price);
+        }
+        flushPrices();
+      });
 
-      // Then poll on interval
-      const pollTimer = setInterval(() => {
-        pollPrices();
-      }, PRICE_POLL_INTERVAL_MS);
+      async function refreshAlerts() {
+        if (!alive) {
+          return;
+        }
+        alerts = await fetchUserPriceAlerts(userId);
 
-      // Heartbeat
+        const uniqueSymbols = [...new Set(alerts.map((a) => a.binance_symbol))];
+        if (uniqueSymbols.length > 0) {
+          priceStream.revive();
+          priceStream.subscribe(uniqueSymbols);
+        }
+      }
+
+      refreshAlerts();
+
+      const alertRefresh = setInterval(() => {
+        refreshAlerts();
+      }, ALERT_REFRESH_INTERVAL_MS);
+
+      const flushInterval = setInterval(() => {
+        flushPrices();
+      }, PRICE_THROTTLE_MS);
+
       const heartbeat = setInterval(() => {
         if (!alive) {
           return;
@@ -246,10 +273,11 @@ export async function GET(request: NextRequest) {
         }
       }, HEARTBEAT_INTERVAL_MS);
 
-      // Cleanup on abort
       request.signal.addEventListener('abort', () => {
         alive = false;
-        clearInterval(pollTimer);
+        priceStream.close();
+        clearInterval(alertRefresh);
+        clearInterval(flushInterval);
         clearInterval(heartbeat);
         try {
           controller.close();

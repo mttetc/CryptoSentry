@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/api/auth';
 import { priceAlertSchema, updatePriceAlertSchema } from '../schemas/price-alert-schemas';
 import { checkAlertLimit } from '@/lib/config/plans';
-import { priceMonitor } from '@/lib/services/crypto/price-monitor';
 import type { z } from 'zod';
 import type { ActionState } from '@/types/actions';
 
@@ -14,7 +13,8 @@ function buildPriceAlertRow(userId: string, validated: z.infer<typeof priceAlert
   return {
     user_id: userId,
     symbol: validated.symbol,
-    coingecko_id: validated.coingeckoId,
+    binance_symbol: validated.binanceSymbol,
+    logo: validated.logo,
     target_price: validated.targetPrice,
     direction: validated.direction,
     recurring: validated.recurring,
@@ -35,9 +35,15 @@ function buildUpdateData(
   }
   if (validated.direction !== undefined) {
     data.direction = validated.direction;
+    // Reset trigger state when direction changes — re-evaluate from scratch
+    data.last_triggered_at = null;
+    data.triggered_at = null;
+    data.is_active = true;
   }
   if (validated.recurring !== undefined) {
     data.recurring = validated.recurring;
+    // Reset cooldown when toggling recurring mode
+    data.last_triggered_at = null;
   }
   return data;
 }
@@ -74,11 +80,7 @@ export async function createPriceAlert(
       throw error;
     }
 
-    // Side effects: refresh monitor + revalidate cache
-    await Promise.allSettled([
-      priceMonitor.refreshAlerts(),
-      Promise.resolve(revalidatePath('/dashboard')),
-    ]);
+    revalidatePath('/dashboard');
 
     return { success: true };
   } catch (error) {

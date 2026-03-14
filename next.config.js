@@ -2,6 +2,9 @@
 const nextConfig = {
   reactCompiler: true,
   turbopack: {},
+  images: {
+    remotePatterns: [{ protocol: 'https', hostname: 'bin.bnbstatic.com' }],
+  },
   allowedDevOrigins: ['192.168.1.90'],
   async headers() {
     return [

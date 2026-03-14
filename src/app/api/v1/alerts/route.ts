@@ -97,7 +97,7 @@ export async function POST(request: Request) {
       .insert({
         user_id: auth.userId,
         symbol: String(body.symbol ?? ''),
-        coingecko_id: String(body.coingeckoId ?? ''),
+        binance_symbol: String(body.binanceSymbol ?? ''),
         target_price: Number(body.targetPrice ?? 0),
         direction: String(body.direction ?? 'above'),
         is_active: true,

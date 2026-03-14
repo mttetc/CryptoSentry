@@ -25,7 +25,7 @@ const features = [
     id: 'price',
     label: 'Price alerts',
     detail:
-      "Pick a coin, set a target price, pick a direction. CoinGecko data polled every 30 seconds. When it crosses, you know. Fires once then disarms so you don't get spammed.",
+      "Pick a coin, set a target price, pick a direction. Real-time Binance WebSocket feed. When it crosses, you know. Fires once then disarms so you don't get spammed.",
   },
   {
     id: 'whale',

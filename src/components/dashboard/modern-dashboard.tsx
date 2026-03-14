@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import { useQueryState, parseAsStringLiteral } from 'nuqs';
 import { motion } from 'motion/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,11 +17,12 @@ import { ActiveConversations } from './active-conversations';
 import { LiveFeed } from './live-feed';
 import { PriceAlertsList } from './price-alerts-list';
 import { WalletAlertsList } from './wallet-alerts-list';
+import { CreateAlertDialog } from './create-alert-dialog';
 import { CreatePriceAlertDialog } from './create-price-alert-dialog';
 import { CreateWalletAlertDialog } from './create-wallet-alert-dialog';
-import { UsageBadge } from './usage-badge';
+import { useAlertStream, type TriggerEvent } from '@/hooks/use-alert-stream';
 import { useNewMatchAlertIds } from '@/hooks/use-new-matches';
-import { pluralWord } from '@/lib/utils/plural';
+import { useNotificationSound } from '@/hooks/use-notification-sound';
 import type {
   SocialAlertWithStats,
   PriceAlertWithStats,
@@ -32,6 +33,8 @@ const fadeUp = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' as const } },
 };
+
+const ALERTS_PER_TYPE = 2;
 
 interface PlanInfo {
   plan: string;
@@ -47,89 +50,45 @@ interface ModernDashboardProps {
   planInfo?: PlanInfo;
 }
 
-function HeaderBadges({
-  alerts,
-  priceAlertCount,
-  walletAlertCount,
-  planInfo,
+function UsageInfo({
+  count,
+  limit,
+  label,
+  plan,
 }: {
-  alerts: SocialAlertWithStats[];
-  priceAlertCount: number;
-  walletAlertCount: number;
-  planInfo?: PlanInfo;
+  count: number;
+  limit: number;
+  label: string;
+  plan: string;
 }) {
-  const [target, setTarget] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    setTarget(document.querySelector<HTMLElement>('#dashboard-header-badges'));
-  }, []);
-
-  const totalAlerts = alerts.length + priceAlertCount + walletAlertCount;
-  const totalTweets = alerts.reduce((sum, a) => sum + a.tweetCount, 0);
-
-  if (!target) {
-    return null;
-  }
-
-  return createPortal(
-    <>
-      {planInfo ? (
-        <UsageBadge usage={planInfo.usage} limit={planInfo.limit} plan={planInfo.plan} />
-      ) : (
-        <Badge variant="default">
-          {totalAlerts} {pluralWord(totalAlerts, 'alert')}
-        </Badge>
-      )}
-      <Badge variant="secondary">
-        {totalTweets} {pluralWord(totalTweets, 'tweet')} today
-      </Badge>
-    </>,
-    target
+  return (
+    <span className="text-muted-foreground text-xs">
+      {count}/{limit} {label} ({plan})
+    </span>
   );
 }
 
-function AccountFilter({
-  accounts,
-  selectedAccount,
-  onSelect,
-}: {
-  accounts: string[];
-  selectedAccount: string;
-  onSelect: (value: string) => void;
-}) {
-  const [target, setTarget] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    setTarget(document.querySelector<HTMLElement>('#dashboard-account-filter'));
-  }, []);
-
-  if (!target || accounts.length <= 1) {
-    return null;
-  }
-
-  return createPortal(
-    <div className="flex items-center gap-2">
-      <Select value={selectedAccount} onValueChange={onSelect}>
-        <SelectTrigger className="w-40">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All accounts</SelectItem>
-          {accounts.map((acc) => (
-            <SelectItem key={acc} value={acc}>
-              @{acc}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {selectedAccount !== 'all' && (
-        <Button variant="link" size="sm" onClick={() => onSelect('all')}>
-          Clear
-        </Button>
-      )}
-    </div>,
-    target
-  );
+function handleOptimisticAlertCreated(
+  data: { account: string; keywords: string[]; platform: string },
+  userId: string,
+  setAlerts: React.Dispatch<React.SetStateAction<SocialAlertWithStats[]>>
+) {
+  setAlerts((prev) => [
+    {
+      id: `optimistic-${Date.now()}`,
+      user_id: userId,
+      platform: data.platform,
+      account: data.account,
+      keywords: data.keywords,
+      is_active: true,
+      call_enabled: true,
+      created_at: new Date().toISOString(),
+      tweetCount: 0,
+      lastActivity: '',
+      recentTweets: [],
+    },
+    ...prev,
+  ]);
 }
 
 export function ModernDashboard({
@@ -139,15 +98,38 @@ export function ModernDashboard({
   initialWalletAlerts,
   planInfo,
 }: ModernDashboardProps) {
+  const TABS = ['social', 'price', 'whale', 'advanced'] as const;
+  const [tab, setTab] = useQueryState('tab', parseAsStringLiteral(TABS).withDefault('social'));
+
   const [alerts, setAlerts] = useState<SocialAlertWithStats[]>(initialAlerts ?? []);
   const [priceAlerts, setPriceAlerts] = useState<PriceAlertWithStats[]>(initialPriceAlerts ?? []);
   const [walletAlerts, setWalletAlerts] = useState<WalletAlertWithStats[]>(
     initialWalletAlerts ?? []
   );
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+  const [recentTriggers, setRecentTriggers] = useState<TriggerEvent[]>([]);
   const flashAlertIds = useNewMatchAlertIds(alerts);
-
   const [polling, setPolling] = useState(true);
+  const { play: playAlertSound } = useNotificationSound();
+
+  const plan = planInfo?.plan ?? 'Free';
+
+  // SSE connection
+  const { connected: sseConnected } = useAlertStream({
+    onPriceUpdate: (data) => {
+      setLivePrices(data.prices);
+    },
+    onPriceTriggered: (data) => {
+      setRecentTriggers((prev) => [data, ...prev].slice(0, 20));
+      playAlertSound();
+      refreshPriceAlerts();
+    },
+    onWhaleTriggered: (data) => {
+      setRecentTriggers((prev) => [data, ...prev].slice(0, 20));
+      playAlertSound();
+    },
+  });
 
   const refreshAlerts = async () => {
     try {
@@ -179,38 +161,16 @@ export function ModernDashboard({
     }
   };
 
-  // Listen for alert-created events from the title row
+  // Listen for alert-created events
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as
-        | {
-            account: string;
-            keywords: string[];
-            platform: string;
-          }
+        | { account: string; keywords: string[]; platform: string }
         | undefined;
-
       if (detail) {
-        // Optimistic: add placeholder alert immediately
-        setAlerts((prev) => [
-          {
-            id: `optimistic-${Date.now()}`,
-            user_id: userId,
-            platform: detail.platform,
-            account: detail.account,
-            keywords: detail.keywords,
-            is_active: true,
-            call_enabled: true,
-            created_at: new Date().toISOString(),
-            tweetCount: 0,
-            lastActivity: '',
-            recentTweets: [],
-          },
-          ...prev,
-        ]);
+        handleOptimisticAlertCreated(detail, userId, setAlerts);
       }
     };
-    // Reconcile when the server action finishes
     const syncHandler = () => refreshAlerts();
     const priceSyncHandler = () => refreshPriceAlerts();
     window.addEventListener('alert-created', handler);
@@ -223,6 +183,7 @@ export function ModernDashboard({
     };
   }, []);
 
+  // Social polling (always on — SSE doesn't cover social)
   const hasActiveAlerts = alerts.some((a) => a.is_active);
 
   useEffect(() => {
@@ -230,145 +191,180 @@ export function ModernDashboard({
       return;
     }
     const interval = setInterval(refreshAlerts, 60_000);
-    return () => {
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [hasActiveAlerts, polling]);
 
-  // Poll price alerts when there are active ones
+  // Price polling fallback — only when SSE is not connected
   const hasActivePriceAlerts = priceAlerts.some((a) => a.is_active);
 
   useEffect(() => {
-    if (!hasActivePriceAlerts || !polling) {
+    if (sseConnected || !hasActivePriceAlerts || !polling) {
       return;
     }
     const interval = setInterval(refreshPriceAlerts, 60_000);
-    return () => {
-      clearInterval(interval);
-    };
-  }, [hasActivePriceAlerts, polling]);
+    return () => clearInterval(interval);
+  }, [hasActivePriceAlerts, polling, sseConnected]);
 
   const accounts = [...new Set(alerts.map((a) => a.account))];
   const filteredAlerts =
     selectedAccount === 'all' ? alerts : alerts.filter((a) => a.account === selectedAccount);
 
   return (
-    <>
-      {/* Portal badges into header */}
-      <HeaderBadges
-        alerts={alerts}
-        priceAlertCount={priceAlerts.length}
-        walletAlertCount={walletAlerts.length}
-        planInfo={planInfo}
-      />
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={fadeUp}
+      className="flex flex-col gap-4 lg:flex-row"
+    >
+      <div className="min-w-0 flex-1">
+        <Tabs
+          value={tab}
+          className="w-full"
+          onValueChange={(v) => {
+            setTab(v as (typeof TABS)[number]);
+          }}
+        >
+          <TabsList className="mb-4">
+            <TabsTrigger value="social">
+              Social
+              {alerts.length > 0 && (
+                <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
+                  {alerts.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="price">
+              Price
+              {priceAlerts.length > 0 && (
+                <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
+                  {priceAlerts.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="whale">
+              Whale
+              {walletAlerts.length > 0 && (
+                <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
+                  {walletAlerts.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          </TabsList>
 
-      {/* Portal account filter into title row */}
-      <AccountFilter
-        accounts={accounts}
-        selectedAccount={selectedAccount}
-        onSelect={setSelectedAccount}
-      />
-
-      {/* Two-column layout: Tabs left, Feed right */}
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={fadeUp}
-        className="flex flex-col gap-4 lg:flex-row"
-      >
-        <div className="min-w-0 flex-1">
-          <Tabs defaultValue="social" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="social">
-                Social
-                {alerts.length > 0 && (
-                  <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
-                    {alerts.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="price">
-                Price
-                {priceAlerts.length > 0 && (
-                  <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
-                    {priceAlerts.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="whale">
-                Whale
-                {walletAlerts.length > 0 && (
-                  <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
-                    {walletAlerts.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="advanced">Advanced</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="social">
-              <ActiveConversations
-                userId={userId}
-                alerts={filteredAlerts}
-                onDeleteAlert={(id) => {
-                  setAlerts((prev) => prev.filter((a) => a.id !== id));
-                }}
-                onToggleAlert={(id) => {
-                  setAlerts((prev) =>
-                    prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
-                  );
-                }}
-                flashAlertIds={flashAlertIds}
+          <TabsContent value="social">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <UsageInfo
+                count={alerts.length}
+                limit={ALERTS_PER_TYPE}
+                label="Social alerts"
+                plan={plan}
               />
-            </TabsContent>
-
-            <TabsContent value="price">
-              <div className="mb-3 flex items-center justify-end">
-                <CreatePriceAlertDialog />
+              <div className="flex items-center gap-2">
+                {accounts.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All accounts</SelectItem>
+                        {accounts.map((acc) => (
+                          <SelectItem key={acc} value={acc}>
+                            @{acc}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedAccount !== 'all' && (
+                      <Button variant="link" size="sm" onClick={() => setSelectedAccount('all')}>
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                )}
+                <CreateAlertDialog
+                  userId={userId}
+                  onAlertCreated={(data) => {
+                    window.dispatchEvent(new CustomEvent('alert-created', { detail: data }));
+                  }}
+                />
               </div>
-              <PriceAlertsList
-                alerts={priceAlerts}
-                onDelete={(id) => {
-                  setPriceAlerts((prev) => prev.filter((a) => a.id !== id));
-                }}
-                onToggle={(id) => {
-                  setPriceAlerts((prev) =>
-                    prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
-                  );
-                }}
+            </div>
+            <ActiveConversations
+              userId={userId}
+              alerts={filteredAlerts}
+              onDeleteAlert={(id) => {
+                setAlerts((prev) => prev.filter((a) => a.id !== id));
+              }}
+              onToggleAlert={(id) => {
+                setAlerts((prev) =>
+                  prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
+                );
+              }}
+              flashAlertIds={flashAlertIds}
+            />
+          </TabsContent>
+
+          <TabsContent value="price">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <UsageInfo
+                count={priceAlerts.length}
+                limit={ALERTS_PER_TYPE}
+                label="Price alerts"
+                plan={plan}
               />
-            </TabsContent>
+              <CreatePriceAlertDialog />
+            </div>
+            <PriceAlertsList
+              alerts={priceAlerts}
+              livePrices={livePrices}
+              onDelete={(id) => {
+                setPriceAlerts((prev) => prev.filter((a) => a.id !== id));
+              }}
+              onToggle={(id) => {
+                setPriceAlerts((prev) =>
+                  prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
+                );
+              }}
+            />
+          </TabsContent>
 
-            <TabsContent value="whale">
-              <div className="mb-3 flex items-center justify-end">
-                <CreateWalletAlertDialog />
-              </div>
-              <WalletAlertsList
-                alerts={walletAlerts}
-                onDelete={(id) => {
-                  setWalletAlerts((prev) => prev.filter((a) => a.id !== id));
-                }}
-                onToggle={(id) => {
-                  setWalletAlerts((prev) =>
-                    prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
-                  );
-                }}
+          <TabsContent value="whale">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <UsageInfo
+                count={walletAlerts.length}
+                limit={ALERTS_PER_TYPE}
+                label="Whale alerts"
+                plan={plan}
               />
-            </TabsContent>
+              <CreateWalletAlertDialog />
+            </div>
+            <WalletAlertsList
+              alerts={walletAlerts}
+              onDelete={(id) => {
+                setWalletAlerts((prev) => prev.filter((a) => a.id !== id));
+              }}
+              onToggle={(id) => {
+                setWalletAlerts((prev) =>
+                  prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
+                );
+              }}
+            />
+          </TabsContent>
 
-            <TabsContent value="advanced">
-              <div className="rounded-xl border border-dashed p-12 text-center">
-                <p className="text-muted-foreground text-sm">
-                  Composite and conditional alerts coming with Premium plan.
-                </p>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-        <div className="lg:sticky lg:top-20 lg:w-[350px] lg:shrink-0 lg:self-start">
-          <LiveFeed alerts={alerts} flashAlertIds={flashAlertIds} />
-        </div>
-      </motion.div>
-    </>
+          <TabsContent value="advanced">
+            <div className="rounded-xl border border-dashed p-12 text-center">
+              <p className="text-muted-foreground text-sm">
+                Composite and conditional alerts coming with Premium plan.
+              </p>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+      <div className="lg:sticky lg:top-20 lg:w-[350px] lg:shrink-0 lg:self-start">
+        <LiveFeed alerts={alerts} flashAlertIds={flashAlertIds} recentTriggers={recentTriggers} />
+      </div>
+    </motion.div>
   );
 }

@@ -8,13 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Field, FieldLabel, FieldError, FieldDescription } from '@/components/ui/field';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { createPriceAlert } from '@/actions/alerts';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -31,7 +24,6 @@ const priceAlertFormSchema = z.object({
   symbol: z.string().min(1, 'Coin is required'),
   coingeckoId: z.string().min(1, 'Coin selection is required'),
   targetPrice: z.number().positive('Price must be positive'),
-  direction: z.enum(['above', 'below']),
 });
 
 type PriceAlertFormData = z.infer<typeof priceAlertFormSchema>;
@@ -53,7 +45,6 @@ export function CreatePriceAlertForm({ onClose }: CreatePriceAlertFormProps) {
       symbol: '',
       coingeckoId: '',
       targetPrice: undefined,
-      direction: 'above',
     },
   });
 
@@ -112,7 +103,8 @@ export function CreatePriceAlertForm({ onClose }: CreatePriceAlertFormProps) {
         symbol: data.symbol,
         coingeckoId: data.coingeckoId,
         targetPrice: data.targetPrice,
-        direction: data.direction,
+        direction: 'exact',
+        recurring: true,
       });
 
       if (!result.success) {
@@ -214,28 +206,6 @@ export function CreatePriceAlertForm({ onClose }: CreatePriceAlertFormProps) {
                 aria-invalid={fieldState.invalid}
               />
             </div>
-            {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-          </Field>
-        )}
-      />
-
-      {/* Direction */}
-      <Controller
-        name="direction"
-        control={form.control}
-        render={({ field, fieldState }) => (
-          <Field data-invalid={fieldState.invalid}>
-            <FieldLabel>Direction</FieldLabel>
-            <FieldDescription>Trigger when price goes...</FieldDescription>
-            <Select value={field.value} onValueChange={field.onChange}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="above">Above target</SelectItem>
-                <SelectItem value="below">Below target</SelectItem>
-              </SelectContent>
-            </Select>
             {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
           </Field>
         )}

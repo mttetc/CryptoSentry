@@ -22,9 +22,11 @@ export async function getPriceAlertsWithStats(
     symbol: String(alert.symbol),
     coingecko_id: String(alert.coingecko_id),
     target_price: Number(alert.target_price),
-    direction: alert.direction as 'above' | 'below',
+    direction: alert.direction as 'above' | 'below' | 'exact',
     is_active: Boolean(alert.is_active),
+    recurring: alert.recurring !== false,
     triggered_at: alert.triggered_at ? String(alert.triggered_at) : null,
+    last_triggered_at: alert.last_triggered_at ? String(alert.last_triggered_at) : null,
     created_at: String(alert.created_at),
   }));
 }

@@ -11,13 +11,8 @@ export async function register() {
     });
   }
 
-  // Price monitor (CoinGecko polling)
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    const { priceMonitor } = await import('@/lib/services/crypto/price-monitor');
-    priceMonitor.startMonitoring().catch((error) => {
-      console.error('[Instrumentation] Failed to start price monitor:', error);
-    });
-  }
+  // Price monitor: handled by SSE route (/api/alerts/stream) per-user
+  // No need to start a global price monitor here
 
   // Wallet monitor (Etherscan + Solscan polling)
   if (process.env.ETHERSCAN_API_KEY || process.env.SOLSCAN_API_KEY) {

@@ -118,7 +118,7 @@ export default async function DashboardPage() {
     <DashboardShell>
       <div className="space-y-6">
         <DashboardHeader userEmail={session.user.email} />
-        <DashboardTitleRow userId={session.user.id} />
+        <DashboardTitleRow />
         <TelegramQrConnect
           connectLink={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'CryptoSentryBot'}?start=${generateConnectToken(session.user.id)}`}
           isConnected={isTelegramConnected}

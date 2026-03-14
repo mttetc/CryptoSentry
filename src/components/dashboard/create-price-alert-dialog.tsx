@@ -30,9 +30,9 @@ export function CreatePriceAlertDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button size="sm" className="bg-green-600 text-white hover:bg-green-700">
           <Plus className="mr-1.5 h-4 w-4" />
-          New Price Alert
+          New Alert
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">

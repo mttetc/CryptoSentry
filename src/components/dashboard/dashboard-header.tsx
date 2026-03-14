@@ -38,9 +38,6 @@ export function DashboardHeader({ userEmail }: DashboardHeaderProps) {
           <span className="text-sm font-semibold tracking-tight">CryptoSentry</span>
         </Link>
 
-        {/* Badges slot — filled via portal by ModernDashboard once data loads */}
-        <div id="dashboard-header-badges" className="hidden items-center gap-3 md:flex" />
-
         <div className="flex items-center gap-4">
           {userEmail && (
             <span className="text-muted-foreground hidden text-sm lg:inline">{userEmail}</span>
@@ -55,9 +52,7 @@ export function DashboardHeader({ userEmail }: DashboardHeaderProps) {
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Sign out</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to sign out?
-                </AlertDialogDescription>
+                <AlertDialogDescription>Are you sure you want to sign out?</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>

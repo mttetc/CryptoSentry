@@ -41,7 +41,10 @@ export function CreateAlertDialog({ userId, onAlertCreated }: CreateAlertDialogP
     <Dialog open={open} onOpenChange={setOpen}>
       {/* Desktop: inline button */}
       <DialogTrigger asChild>
-        <Button className="hidden sm:inline-flex">
+        <Button
+          size="sm"
+          className="hidden bg-green-600 text-white hover:bg-green-700 sm:inline-flex"
+        >
           <Plus className="mr-1.5 h-4 w-4" />
           New Alert
         </Button>
@@ -50,7 +53,7 @@ export function CreateAlertDialog({ userId, onAlertCreated }: CreateAlertDialogP
       <DialogTrigger asChild>
         <Button
           size="icon"
-          className="bg-primary text-primary-foreground fixed right-4 bottom-4 z-50 h-11 w-11 rounded-full shadow-lg sm:hidden"
+          className="fixed right-4 bottom-4 z-50 h-11 w-11 rounded-full bg-green-600 text-white shadow-lg hover:bg-green-700 sm:hidden"
         >
           <Plus className="h-5 w-5" />
         </Button>

@@ -1,6 +1,7 @@
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
 import { fetchPrices } from './coingecko';
 import { sendUnifiedAlert } from '@/actions/messaging/unified-notifications';
+import { alertEventBus } from '@/lib/services/event-bus';
 import type { AlertNotification } from '@/types/notifications';
 
 const DEFAULT_POLL_INTERVAL_MS = 30_000;
@@ -110,10 +111,20 @@ export class PriceMonitor {
 
     const prices = await fetchPrices(uniqueIds);
 
+    console.warn(`[PriceMonitor] Prices received:`, JSON.stringify(prices));
+
     if (Object.keys(prices).length === 0) {
       this.schedulePoll(DEFAULT_POLL_INTERVAL_MS);
       return;
     }
+
+    // Emit price update event for SSE
+    const uniqueUserIds = [...new Set(this.alerts.map((a) => a.user_id))];
+    alertEventBus.emit({
+      type: 'price:update',
+      prices,
+      userIds: uniqueUserIds,
+    });
 
     for (const alert of this.alerts) {
       if (!this.isMonitoring) {
@@ -122,12 +133,17 @@ export class PriceMonitor {
 
       const currentPrice = prices[alert.coingecko_id];
       if (currentPrice === undefined) {
+        console.warn(`[PriceMonitor] No price for ${alert.coingecko_id} (alert ${alert.id})`);
         continue;
       }
 
       const shouldTrigger =
         (alert.direction === 'above' && currentPrice >= alert.target_price) ||
         (alert.direction === 'below' && currentPrice <= alert.target_price);
+
+      console.warn(
+        `[PriceMonitor] Check: ${alert.symbol} ${alert.direction} $${alert.target_price} vs $${currentPrice} → ${shouldTrigger ? 'TRIGGER' : 'no'}`
+      );
 
       if (shouldTrigger) {
         await this.triggerAlert(alert, currentPrice);
@@ -158,6 +174,7 @@ export class PriceMonitor {
       // Persist trigger record
       const { error: triggerError } = await supabase.from('alert_triggers').insert({
         alert_id: alert.id,
+        user_id: alert.user_id,
         type: 'price',
         data: {
           symbol: alert.symbol,
@@ -188,6 +205,17 @@ export class PriceMonitor {
 
       await sendUnifiedAlert(notification);
 
+      // Emit trigger event for SSE
+      alertEventBus.emit({
+        type: 'price:triggered',
+        userId: alert.user_id,
+        alertId: alert.id,
+        symbol: alert.symbol,
+        currentPrice,
+        targetPrice: alert.target_price,
+        direction: alert.direction,
+      });
+
       // Remove from local cache
       this.alerts = this.alerts.filter((a) => a.id !== alert.id);
 
@@ -200,4 +228,8 @@ export class PriceMonitor {
   }
 }
 
-export const priceMonitor = new PriceMonitor();
+// Use globalThis for HMR stability — singleton must survive hot reloads
+const globalKey = Symbol.for('cryptosentry.priceMonitor');
+const globalRecord = globalThis as unknown as Record<symbol, PriceMonitor>;
+export const priceMonitor: PriceMonitor = globalRecord[globalKey] ?? new PriceMonitor();
+globalRecord[globalKey] = priceMonitor;

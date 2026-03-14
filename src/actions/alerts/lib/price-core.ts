@@ -2,10 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/api/auth';
-import {
-  priceAlertSchema,
-  updatePriceAlertSchema,
-} from '../schemas/price-alert-schemas';
+import { priceAlertSchema, updatePriceAlertSchema } from '../schemas/price-alert-schemas';
 import { checkAlertLimit } from '@/lib/config/plans';
 import { priceMonitor } from '@/lib/services/crypto/price-monitor';
 import type { z } from 'zod';
@@ -13,16 +10,14 @@ import type { ActionState } from '@/types/actions';
 
 // --- Pure functions ---
 
-function buildPriceAlertRow(
-  userId: string,
-  validated: z.infer<typeof priceAlertSchema>
-) {
+function buildPriceAlertRow(userId: string, validated: z.infer<typeof priceAlertSchema>) {
   return {
     user_id: userId,
     symbol: validated.symbol,
     coingecko_id: validated.coingeckoId,
     target_price: validated.targetPrice,
     direction: validated.direction,
+    recurring: validated.recurring,
     is_active: true,
   };
 }
@@ -40,6 +35,9 @@ function buildUpdateData(
   }
   if (validated.direction !== undefined) {
     data.direction = validated.direction;
+  }
+  if (validated.recurring !== undefined) {
+    data.recurring = validated.recurring;
   }
   return data;
 }
@@ -130,9 +128,7 @@ export async function updatePriceAlert(
   }
 }
 
-export async function deletePriceAlert(
-  alertId: string
-): Promise<ActionState> {
+export async function deletePriceAlert(alertId: string): Promise<ActionState> {
   try {
     const { supabase, userId } = await requireAuth();
 
@@ -146,10 +142,7 @@ export async function deletePriceAlert(
       return { success: false, error: 'Alert not found' };
     }
 
-    const { error } = await supabase
-      .from('price_alerts')
-      .delete()
-      .eq('id', alertId);
+    const { error } = await supabase.from('price_alerts').delete().eq('id', alertId);
 
     if (error) {
       throw error;

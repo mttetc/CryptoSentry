@@ -54,9 +54,11 @@ export interface PriceAlertWithStats {
   symbol: string;
   coingecko_id: string;
   target_price: number;
-  direction: 'above' | 'below';
+  direction: 'above' | 'below' | 'exact';
   is_active: boolean;
+  recurring: boolean;
   triggered_at: string | null;
+  last_triggered_at: string | null;
   created_at: string;
 }
 

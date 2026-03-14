@@ -1,5 +1,6 @@
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
 import { sendUnifiedAlert } from '@/actions/messaging/unified-notifications';
+import { alertEventBus } from '@/lib/services/event-bus';
 import { EtherscanProvider } from './providers/etherscan';
 import { SolscanProvider } from './providers/solscan';
 import type { WalletAlertRow, ChainProvider, WalletTransaction } from './types';
@@ -166,10 +167,7 @@ export class WalletMonitor {
     this.schedulePoll(DEFAULT_POLL_INTERVAL_MS);
   }
 
-  private async triggerWalletAlert(
-    alert: WalletAlertRow,
-    tx: WalletTransaction
-  ): Promise<void> {
+  private async triggerWalletAlert(alert: WalletAlertRow, tx: WalletTransaction): Promise<void> {
     const supabase = createServiceSupabaseClient();
 
     try {
@@ -213,6 +211,19 @@ export class WalletMonitor {
 
       await sendUnifiedAlert(notification);
 
+      // Emit trigger event for SSE
+      alertEventBus.emit({
+        type: 'whale:triggered',
+        userId: alert.user_id,
+        alertId: alert.id,
+        txHash: tx.hash,
+        tokenSymbol: tx.tokenSymbol,
+        valueUsd: tx.valueUsd,
+        chain: alert.chain,
+        from: tx.from,
+        to: tx.to,
+      });
+
       console.warn(
         `[WalletMonitor] Triggered alert ${alert.id}: ${tx.tokenSymbol} $${tx.valueUsd.toFixed(0)} on ${alert.chain}`
       );
@@ -222,4 +233,8 @@ export class WalletMonitor {
   }
 }
 
-export const walletMonitor = new WalletMonitor();
+// Use globalThis for HMR stability — singleton must survive hot reloads
+const globalKey = Symbol.for('cryptosentry.walletMonitor');
+const globalRecord = globalThis as unknown as Record<symbol, WalletMonitor>;
+export const walletMonitor: WalletMonitor = globalRecord[globalKey] ?? new WalletMonitor();
+globalRecord[globalKey] = walletMonitor;

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import Image from 'next/image';
 import { Plus, Pencil, Trash2, Wallet, X, Check } from 'lucide-react';
 import { addPosition, updatePosition, removePosition } from '@/actions/portfolio';
 
@@ -272,11 +273,12 @@ export function PortfolioManager({ initialPositions }: PortfolioManagerProps) {
                             onClick={() => handleSelectCoin(coin)}
                           >
                             {coin.logo && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
+                              <Image
                                 src={coin.logo}
                                 alt=""
-                                className="h-5 w-5 rounded-full"
+                                width={20}
+                                height={20}
+                                className="rounded-full"
                                 referrerPolicy="no-referrer"
                               />
                             )}

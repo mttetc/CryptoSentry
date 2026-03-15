@@ -1,8 +1,21 @@
+import { cache } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
 import type { SocialAlertWithStats } from '@/types/alerts';
 
-export async function getSocialAlertsWithStats(
-  supabase: SupabaseClient,
+interface TriggerData {
+  content?: string;
+  author?: string;
+  tweet_url?: string;
+  engagement?: {
+    likes?: number;
+    retweets?: number;
+    replies?: number;
+  };
+}
+
+export const getSocialAlertsWithStats = cache(async function getSocialAlertsWithStats(
+  supabase: SupabaseClient<Database>,
   userId: string
 ): Promise<SocialAlertWithStats[]> {
   const { data: alerts, error } = await supabase
@@ -16,42 +29,61 @@ export async function getSocialAlertsWithStats(
     return [];
   }
 
-  return Promise.all(
-    (alerts || []).map(async (alert) => {
-      const { data: triggers } = await supabase
-        .from('alert_triggers')
-        .select('*')
-        .eq('alert_id', alert.id)
-        .gte('triggered_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-        .order('triggered_at', { ascending: false })
-        .limit(10);
+  if (!alerts || alerts.length === 0) {
+    return [];
+  }
 
-      const recentTweets = (triggers || []).map((trigger) => ({
-        id: String(trigger.id),
-        text: String(trigger.data?.content ?? ''),
-        author: String(trigger.data?.author ?? alert.account),
-        url: String(trigger.data?.tweet_url ?? ''),
-        timestamp: String(trigger.triggered_at),
-        engagement: {
-          likes: Number(trigger.data?.engagement?.likes ?? 0),
-          retweets: Number(trigger.data?.engagement?.retweets ?? 0),
-          replies: Number(trigger.data?.engagement?.replies ?? 0),
-        },
-      }));
+  const alertIds = alerts.map((a) => a.id);
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
+  const { data: allTriggers } = await supabase
+    .from('alert_triggers')
+    .select('*')
+    .in('alert_id', alertIds)
+    .gte('triggered_at', cutoff)
+    .order('triggered_at', { ascending: false });
+
+  const triggersByAlert = new Map<string, NonNullable<typeof allTriggers>>();
+  for (const trigger of allTriggers ?? []) {
+    const id = trigger.alert_id ?? '';
+    const existing = triggersByAlert.get(id) ?? [];
+    if (existing.length < 10) {
+      existing.push(trigger);
+    }
+    triggersByAlert.set(id, existing);
+  }
+
+  return alerts.map((alert) => {
+    const triggers = triggersByAlert.get(alert.id) ?? [];
+
+    const recentTweets = triggers.map((trigger) => {
+      const d = trigger.data as unknown as TriggerData;
       return {
-        id: String(alert.id),
-        user_id: String(alert.user_id),
-        platform: String(alert.platform),
-        account: String(alert.account),
-        keywords: alert.keywords ?? [],
-        is_active: Boolean(alert.is_active),
-        call_enabled: Boolean(alert.call_enabled ?? true),
-        created_at: String(alert.created_at),
-        tweetCount: triggers?.length ?? 0,
-        lastActivity: String(triggers?.[0]?.triggered_at ?? alert.created_at),
-        recentTweets,
+        id: trigger.id,
+        text: d.content ?? '',
+        author: d.author ?? alert.account,
+        url: d.tweet_url ?? '',
+        timestamp: trigger.triggered_at,
+        engagement: {
+          likes: d.engagement?.likes ?? 0,
+          retweets: d.engagement?.retweets ?? 0,
+          replies: d.engagement?.replies ?? 0,
+        },
       };
-    })
-  );
-}
+    });
+
+    return {
+      id: alert.id,
+      user_id: alert.user_id,
+      platform: alert.platform,
+      account: alert.account,
+      keywords: alert.keywords,
+      is_active: alert.is_active,
+      call_enabled: alert.call_enabled,
+      created_at: alert.created_at,
+      tweetCount: triggers.length,
+      lastActivity: triggers[0]?.triggered_at ?? alert.created_at,
+      recentTweets,
+    };
+  });
+});

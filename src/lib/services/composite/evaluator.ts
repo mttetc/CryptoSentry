@@ -6,7 +6,7 @@ import type { CompositeAlertRow, CompositeCondition } from './types';
 
 interface TriggerEvent {
   type: string;
-  data: Record<string, unknown>;
+  data: Record<string, Json | undefined>;
 }
 
 function matchesCondition(condition: CompositeCondition, event: TriggerEvent): boolean {
@@ -37,10 +37,12 @@ function matchesCondition(condition: CompositeCondition, event: TriggerEvent): b
   }
 }
 
+import type { Json } from '@/types/database';
+
 function buildConditionEventRow(
   alertId: string,
   conditionIndex: number,
-  data: Record<string, unknown>
+  data: Record<string, Json | undefined>
 ) {
   return {
     composite_alert_id: alertId,
@@ -74,13 +76,13 @@ async function fetchActiveCompositeAlerts(userId: string): Promise<CompositeAler
     return [];
   }
 
-  return (data as CompositeAlertRow[]) ?? [];
+  return (data ?? []) as unknown as CompositeAlertRow[];
 }
 
 async function insertConditionEvent(
   alertId: string,
   conditionIndex: number,
-  data: Record<string, unknown>
+  data: Record<string, Json | undefined>
 ): Promise<void> {
   const supabase = createServiceSupabaseClient();
   await supabase
@@ -126,7 +128,7 @@ async function updateLastEvaluated(alertId: string): Promise<void> {
 interface CompositeEvent {
   type: string;
   userId: string;
-  data: Record<string, unknown>;
+  data: Record<string, Json | undefined>;
 }
 
 /**

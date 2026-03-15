@@ -101,14 +101,14 @@ export async function getTelegramUser(userId: string): Promise<TelegramUser | nu
       .eq('user_id', userId)
       .single();
 
-    if (error || !data) {
+    if (error || !data?.telegram_chat_id) {
       return null;
     }
 
     return {
       id: userId,
       telegram_chat_id: data.telegram_chat_id,
-      telegram_username: data.telegram_username,
+      telegram_username: data.telegram_username ?? undefined,
     };
   } catch (error) {
     console.error('Error getting Telegram user:', error);
@@ -128,9 +128,7 @@ export async function verifyWebhookSignature(
   try {
     const token = requireTelegramBotToken();
     const secretKey = createHmac('sha256', 'WebAppData').update(token).digest();
-    const expectedSignature = createHmac('sha256', secretKey)
-      .update(payload)
-      .digest('hex');
+    const expectedSignature = createHmac('sha256', secretKey).update(payload).digest('hex');
 
     return expectedSignature === signature;
   } catch (error) {

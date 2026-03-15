@@ -28,9 +28,10 @@ type WalletAlertFormData = z.infer<typeof walletAlertFormSchema>;
 
 interface CreateWalletAlertFormProps {
   onClose?: () => void;
+  onSynced?: () => void;
 }
 
-export function CreateWalletAlertForm({ onClose }: CreateWalletAlertFormProps) {
+export function CreateWalletAlertForm({ onClose, onSynced }: CreateWalletAlertFormProps) {
   const form = useForm<WalletAlertFormData>({
     resolver: zodResolver(walletAlertFormSchema),
     defaultValues: {
@@ -61,7 +62,7 @@ export function CreateWalletAlertForm({ onClose }: CreateWalletAlertFormProps) {
     } catch {
       toast.error('Failed to create wallet alert. Please try again.');
     } finally {
-      window.dispatchEvent(new CustomEvent('wallet-alert-synced'));
+      onSynced?.();
     }
   };
 

@@ -41,9 +41,10 @@ interface CreateAlertFormProps {
   userId: string;
   onAlertCreated?: (data: OptimisticAlertData) => void;
   onClose?: () => void;
+  onSynced?: () => void;
 }
 
-export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProps) {
+export function CreateAlertForm({ onAlertCreated, onClose, onSynced }: CreateAlertFormProps) {
   const [newKeyword, setNewKeyword] = useState('');
   const keywordInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,7 +101,7 @@ export function CreateAlertForm({ onAlertCreated, onClose }: CreateAlertFormProp
     } catch {
       toast.error('Failed to create alert. Please try again.');
     } finally {
-      window.dispatchEvent(new CustomEvent('alert-synced'));
+      onSynced?.();
     }
   };
 

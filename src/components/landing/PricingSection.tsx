@@ -1,7 +1,7 @@
 'use client';
 
 import NextLink from 'next/link';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { fadeInUp, staggerContainer } from './animations';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,23 +56,23 @@ const plans = [
 export default function PricingSection() {
   return (
     <section className="border-t py-24">
-      <motion.div
+      <m.div
         variants={staggerContainer}
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.3 }}
         className="mx-auto max-w-5xl px-6"
       >
-        <motion.div variants={fadeInUp} className="text-center">
+        <m.div variants={fadeInUp} className="text-center">
           <h2 className="text-3xl font-semibold tracking-tight">Simple pricing</h2>
           <p className="text-muted-foreground mt-3">
             Start free. Upgrade when you need more alerts.
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="mx-auto mt-12 grid max-w-4xl items-stretch gap-6 md:grid-cols-3">
           {plans.map((plan) => (
-            <motion.div key={plan.name} variants={fadeInUp}>
+            <m.div key={plan.name} variants={fadeInUp}>
               <Card
                 className={
                   'highlighted' in plan && plan.highlighted
@@ -102,18 +102,18 @@ export default function PricingSection() {
                   </Button>
                 </CardContent>
               </Card>
-            </motion.div>
+            </m.div>
           ))}
         </div>
 
-        <motion.p
+        <m.p
           variants={fadeInUp}
           className="text-muted-foreground mx-auto mt-8 max-w-lg text-center text-xs"
         >
           CryptoSentry is in early access. We rely on public data sources that may occasionally
           experience disruptions. As adoption grows, we invest in more reliable infrastructure.
-        </motion.p>
-      </motion.div>
+        </m.p>
+      </m.div>
     </section>
   );
 }

@@ -7,18 +7,15 @@ export async function GET(request: NextRequest) {
     const { supabase, userId } = await requireAuthFromRequest(request);
     const alerts = await getPriceAlertsWithStats(supabase, userId);
 
-    return NextResponse.json({
-      success: true,
-      alerts,
-    });
+    return NextResponse.json(
+      { success: true, alerts },
+      { headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=30' } }
+    );
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     console.error('Error in GET /api/alerts/price:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

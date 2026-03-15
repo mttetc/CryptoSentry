@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { fadeInUp } from './animations';
 import { Separator } from '@/components/ui/separator';
 
@@ -14,7 +14,7 @@ export default function StatsBar() {
   return (
     <div>
       <Separator />
-      <motion.section
+      <m.section
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.5 }}
@@ -29,7 +29,7 @@ export default function StatsBar() {
             </div>
           ))}
         </div>
-      </motion.section>
+      </m.section>
       <Separator />
     </div>
   );

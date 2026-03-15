@@ -10,6 +10,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Field, FieldLabel, FieldError, FieldDescription } from '@/components/ui/field';
 import { toast } from 'sonner';
 import { createPriceAlert } from '@/actions/alerts';
+import Image from 'next/image';
 import { useDebounce } from '@/hooks/use-debounce';
 import { cn } from '@/lib/utils';
 
@@ -30,9 +31,10 @@ type PriceAlertFormData = z.infer<typeof priceAlertFormSchema>;
 
 interface CreatePriceAlertFormProps {
   onClose?: () => void;
+  onSynced?: () => void;
 }
 
-export function CreatePriceAlertForm({ onClose }: CreatePriceAlertFormProps) {
+export function CreatePriceAlertForm({ onClose, onSynced }: CreatePriceAlertFormProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CoinResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -118,7 +120,7 @@ export function CreatePriceAlertForm({ onClose }: CreatePriceAlertFormProps) {
     } catch {
       toast.error('Failed to create price alert. Please try again.');
     } finally {
-      window.dispatchEvent(new CustomEvent('price-alert-synced'));
+      onSynced?.();
     }
   };
 
@@ -136,11 +138,12 @@ export function CreatePriceAlertForm({ onClose }: CreatePriceAlertFormProps) {
             <div ref={dropdownRef} className="relative">
               <div className="relative flex items-center">
                 {selectedLogo && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Image
                     src={selectedLogo}
                     alt=""
-                    className="absolute left-2.5 h-5 w-5 rounded-full"
+                    width={20}
+                    height={20}
+                    className="absolute left-2.5 rounded-full"
                     referrerPolicy="no-referrer"
                   />
                 )}
@@ -181,13 +184,12 @@ export function CreatePriceAlertForm({ onClose }: CreatePriceAlertFormProps) {
                       onClick={() => selectCoin(coin)}
                     >
                       {coin.logo && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <Image
                           src={coin.logo}
                           alt=""
-                          className="h-5 w-5 rounded-full"
                           width={20}
                           height={20}
+                          className="rounded-full"
                           referrerPolicy="no-referrer"
                         />
                       )}

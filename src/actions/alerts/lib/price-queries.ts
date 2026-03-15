@@ -1,8 +1,10 @@
+import { cache } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
 import type { PriceAlertWithStats } from '@/types/alerts';
 
-export async function getPriceAlertsWithStats(
-  supabase: SupabaseClient,
+export const getPriceAlertsWithStats = cache(async function getPriceAlertsWithStats(
+  supabase: SupabaseClient<Database>,
   userId: string
 ): Promise<PriceAlertWithStats[]> {
   const { data: alerts, error } = await supabase
@@ -17,17 +19,17 @@ export async function getPriceAlertsWithStats(
   }
 
   return (alerts ?? []).map((alert) => ({
-    id: String(alert.id),
-    user_id: String(alert.user_id),
-    symbol: String(alert.symbol),
-    binance_symbol: String(alert.binance_symbol),
-    logo: String(alert.logo ?? ''),
-    target_price: Number(alert.target_price),
-    direction: alert.direction as 'above' | 'below' | 'exact',
-    is_active: Boolean(alert.is_active),
-    recurring: alert.recurring !== false,
-    triggered_at: alert.triggered_at ? String(alert.triggered_at) : null,
-    last_triggered_at: alert.last_triggered_at ? String(alert.last_triggered_at) : null,
-    created_at: String(alert.created_at),
+    id: alert.id,
+    user_id: alert.user_id,
+    symbol: alert.symbol,
+    binance_symbol: alert.binance_symbol,
+    logo: alert.logo ?? '',
+    target_price: alert.target_price,
+    direction: alert.direction,
+    is_active: alert.is_active,
+    recurring: alert.recurring,
+    triggered_at: alert.triggered_at,
+    last_triggered_at: alert.last_triggered_at,
+    created_at: alert.created_at,
   }));
-}
+});

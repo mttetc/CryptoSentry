@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { fadeInUp, staggerContainer } from './animations';
 import { Badge } from '@/components/ui/badge';
 
@@ -30,31 +30,31 @@ const steps = [
 export default function HowItWorks() {
   return (
     <section className="py-16">
-      <motion.div
+      <m.div
         variants={staggerContainer}
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.3 }}
         className="mx-auto max-w-5xl px-6"
       >
-        <motion.p
+        <m.p
           variants={fadeInUp}
           className="text-muted-foreground mb-10 text-center font-mono text-sm tracking-widest uppercase"
         >
           How it works
-        </motion.p>
+        </m.p>
         <div className="grid gap-x-12 gap-y-10 md:grid-cols-2 lg:grid-cols-4">
           {steps.map((step) => (
-            <motion.div key={step.num} variants={fadeInUp}>
+            <m.div key={step.num} variants={fadeInUp}>
               <Badge variant="default" className="font-mono">
                 {step.num}
               </Badge>
               <h3 className="mt-3 text-lg font-semibold">{step.title}</h3>
               <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{step.desc}</p>
-            </motion.div>
+            </m.div>
           ))}
         </div>
-      </motion.div>
+      </m.div>
     </section>
   );
 }

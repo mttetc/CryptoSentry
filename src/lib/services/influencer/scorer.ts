@@ -118,10 +118,10 @@ export class InfluencerScorer {
     // Find accounts with completed events (both 1h and 24h prices filled)
     const { data: completedEvents } = await supabase
       .from('influencer_events')
-      .select('account, price_at_mention, price_after_1h, price_after_24h')
+      .select('id, account, price_at_mention, price_after_1h, price_after_24h')
       .not('price_after_1h', 'is', null)
       .not('price_after_24h', 'is', null)
-      .not('scored', 'is', true)
+      .eq('scored', false)
       .limit(100);
 
     if (!completedEvents || completedEvents.length === 0) {
@@ -152,19 +152,20 @@ export class InfluencerScorer {
       const { error } = await supabase.from('influencer_scores').upsert(
         {
           account,
+          token_symbol: '_aggregate',
           total_calls: events.length,
           correct_calls: correctCalls,
           accuracy,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'account' }
+        { onConflict: 'account,token_symbol' }
       );
 
       if (error) {
         console.error(`[InfluencerScorer] Failed to upsert score for ${account}:`, error);
       }
 
-      const eventIds = events.map((e) => (e as Record<string, unknown>).id);
+      const eventIds = events.map((e) => e.id);
       if (eventIds.length > 0) {
         await supabase.from('influencer_events').update({ scored: true }).in('id', eventIds);
       }

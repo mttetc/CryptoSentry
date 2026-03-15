@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,22 +12,19 @@ import {
 } from '@/components/ui/dialog';
 import { CreateWalletAlertForm } from './create-wallet-alert-form';
 
-export function CreateWalletAlertDialog() {
-  const [open, setOpen] = useState(false);
+interface CreateWalletAlertDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSynced?: () => void;
+}
 
-  // Allow opening from anywhere via custom event
-  useEffect(() => {
-    const handler = () => {
-      setOpen(true);
-    };
-    window.addEventListener('open-create-wallet-alert', handler);
-    return () => {
-      window.removeEventListener('open-create-wallet-alert', handler);
-    };
-  }, []);
-
+export function CreateWalletAlertDialog({
+  open,
+  onOpenChange,
+  onSynced,
+}: CreateWalletAlertDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm" className="bg-green-600 text-white hover:bg-green-700">
           <Plus className="mr-1.5 h-4 w-4" />
@@ -42,7 +38,7 @@ export function CreateWalletAlertDialog() {
             Monitor a wallet for large transfers and get notified instantly.
           </DialogDescription>
         </DialogHeader>
-        <CreateWalletAlertForm onClose={() => setOpen(false)} />
+        <CreateWalletAlertForm onClose={() => onOpenChange(false)} onSynced={onSynced} />
       </DialogContent>
     </Dialog>
   );

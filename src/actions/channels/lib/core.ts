@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/api/auth';
 import type { ActionState } from '@/types/actions';
+import type { Json } from '@/types/database';
 import type { z } from 'zod';
 import {
   addChannelSchema,
@@ -17,7 +18,7 @@ import {
 function validateChannelConfig(
   channelType: string,
   config: Record<string, unknown>
-): { success: true; data: Record<string, unknown> } | { success: false; error: string } {
+): { success: true; data: Record<string, Json | undefined> } | { success: false; error: string } {
   switch (channelType) {
     case 'email': {
       const result = emailChannelConfigSchema.safeParse(config);
@@ -49,7 +50,7 @@ function validateChannelConfig(
 function buildChannelRow(
   userId: string,
   validated: z.infer<typeof addChannelSchema>,
-  validatedConfig: Record<string, unknown>
+  validatedConfig: Record<string, Json | undefined>
 ) {
   return {
     user_id: userId,

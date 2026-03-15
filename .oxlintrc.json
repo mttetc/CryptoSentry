@@ -177,6 +177,7 @@
     "*.config.js",
     "*.config.ts",
     "*.config.cjs",
-    "*.config.mjs"
+    "*.config.mjs",
+    "src/types/database.ts"
   ]
 }

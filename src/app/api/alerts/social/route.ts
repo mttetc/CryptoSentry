@@ -7,10 +7,10 @@ export async function GET(_request: NextRequest) {
     const { supabase, userId } = await requireAuth();
     const alertsWithStats = await getSocialAlertsWithStats(supabase, userId);
 
-    return NextResponse.json({
-      success: true,
-      alerts: alertsWithStats,
-    });
+    return NextResponse.json(
+      { success: true, alerts: alertsWithStats },
+      { headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=30' } }
+    );
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

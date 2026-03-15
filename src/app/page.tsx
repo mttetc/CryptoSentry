@@ -7,6 +7,7 @@ import FeatureShowcase from '@/components/landing/FeatureShowcase';
 import PricingSection from '@/components/landing/PricingSection';
 import BottomCTA from '@/components/landing/BottomCTA';
 import LandingFooter from '@/components/landing/LandingFooter';
+import { LazyMotionProvider } from '@/components/landing/lazy-motion-provider';
 
 export const metadata: Metadata = {
   title: 'CryptoSentry - Stop refreshing Twitter',
@@ -20,11 +21,13 @@ export default function LandingPage() {
       <LandingHeader />
       <main>
         <HeroSection />
-        <StatsBar />
-        <HowItWorks />
-        <FeatureShowcase />
-        <PricingSection />
-        <BottomCTA />
+        <LazyMotionProvider>
+          <StatsBar />
+          <HowItWorks />
+          <FeatureShowcase />
+          <PricingSection />
+          <BottomCTA />
+        </LazyMotionProvider>
       </main>
       <LandingFooter />
     </div>

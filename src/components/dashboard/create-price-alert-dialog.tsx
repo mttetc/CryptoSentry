@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,22 +12,19 @@ import {
 } from '@/components/ui/dialog';
 import { CreatePriceAlertForm } from './create-price-alert-form';
 
-export function CreatePriceAlertDialog() {
-  const [open, setOpen] = useState(false);
+interface CreatePriceAlertDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSynced?: () => void;
+}
 
-  // Allow opening from anywhere via custom event
-  useEffect(() => {
-    const handler = () => {
-      setOpen(true);
-    };
-    window.addEventListener('open-create-price-alert', handler);
-    return () => {
-      window.removeEventListener('open-create-price-alert', handler);
-    };
-  }, []);
-
+export function CreatePriceAlertDialog({
+  open,
+  onOpenChange,
+  onSynced,
+}: CreatePriceAlertDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm" className="bg-green-600 text-white hover:bg-green-700">
           <Plus className="mr-1.5 h-4 w-4" />
@@ -42,7 +38,7 @@ export function CreatePriceAlertDialog() {
             Get notified when a token price crosses your target.
           </DialogDescription>
         </DialogHeader>
-        <CreatePriceAlertForm onClose={() => setOpen(false)} />
+        <CreatePriceAlertForm onClose={() => onOpenChange(false)} onSynced={onSynced} />
       </DialogContent>
     </Dialog>
   );

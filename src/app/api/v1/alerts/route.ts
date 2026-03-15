@@ -92,6 +92,12 @@ export async function POST(request: Request) {
     }
 
     // Price alert
+    const validDirections = ['above', 'below', 'exact'] as const;
+    const rawDirection = String(body.direction ?? 'above');
+    const direction = validDirections.includes(rawDirection as (typeof validDirections)[number])
+      ? (rawDirection as (typeof validDirections)[number])
+      : 'above';
+
     const { data, error } = await supabase
       .from('price_alerts')
       .insert({
@@ -99,7 +105,7 @@ export async function POST(request: Request) {
         symbol: String(body.symbol ?? ''),
         binance_symbol: String(body.binanceSymbol ?? ''),
         target_price: Number(body.targetPrice ?? 0),
-        direction: String(body.direction ?? 'above'),
+        direction,
         is_active: true,
       })
       .select()

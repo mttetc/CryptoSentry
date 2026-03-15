@@ -44,6 +44,7 @@ interface ActiveConversationsProps {
   onDeleteAlert?: (id: string) => void;
   onToggleAlert?: (id: string) => void;
   flashAlertIds?: Set<string>;
+  onRequestCreate?: () => void;
 }
 
 const cardTransition = { duration: 0.25, ease: 'easeOut' as const };
@@ -356,14 +357,12 @@ function CompactAlertCard({
   );
 }
 
-function AddAlertCard() {
+function AddAlertCard({ onRequestCreate }: { onRequestCreate?: () => void }) {
   return (
     <motion.div layoutId="add-alert-card" layout transition={cardTransition}>
       <button
         type="button"
-        onClick={() => {
-          window.dispatchEvent(new CustomEvent('open-create-alert'));
-        }}
+        onClick={() => onRequestCreate?.()}
         className="border-primary/20 hover:border-primary/40 hover:bg-primary/5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-6 transition-colors"
       >
         <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
@@ -398,6 +397,7 @@ export function ActiveConversations({
   onDeleteAlert,
   onToggleAlert,
   flashAlertIds = new Set(),
+  onRequestCreate,
 }: ActiveConversationsProps) {
   const deferredAlerts = useDeferredValue(alerts);
 
@@ -419,7 +419,7 @@ export function ActiveConversations({
             ))}
           </AnimatePresence>
         )}
-        <AddAlertCard />
+        <AddAlertCard onRequestCreate={onRequestCreate} />
       </div>
     </LayoutGroup>
   );

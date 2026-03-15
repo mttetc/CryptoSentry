@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,30 +14,26 @@ import { CreateAlertForm, type OptimisticAlertData } from './create-alert-form';
 
 interface CreateAlertDialogProps {
   userId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onAlertCreated?: (data: OptimisticAlertData) => void;
+  onSynced?: () => void;
 }
 
-export function CreateAlertDialog({ userId, onAlertCreated }: CreateAlertDialogProps) {
-  const [open, setOpen] = useState(false);
-
-  // Allow opening from anywhere via custom event
-  useEffect(() => {
-    const handler = () => {
-      setOpen(true);
-    };
-    window.addEventListener('open-create-alert', handler);
-    return () => {
-      window.removeEventListener('open-create-alert', handler);
-    };
-  }, []);
-
+export function CreateAlertDialog({
+  userId,
+  open,
+  onOpenChange,
+  onAlertCreated,
+  onSynced,
+}: CreateAlertDialogProps) {
   const handleCreated = (data: OptimisticAlertData) => {
     onAlertCreated?.(data);
-    setOpen(false);
+    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Desktop: inline button */}
       <DialogTrigger asChild>
         <Button
@@ -66,7 +61,8 @@ export function CreateAlertDialog({ userId, onAlertCreated }: CreateAlertDialogP
         <CreateAlertForm
           userId={userId}
           onAlertCreated={handleCreated}
-          onClose={() => setOpen(false)}
+          onClose={() => onOpenChange(false)}
+          onSynced={onSynced}
         />
       </DialogContent>
     </Dialog>

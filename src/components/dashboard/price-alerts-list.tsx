@@ -35,6 +35,7 @@ import {
   Target,
   Plus,
 } from 'lucide-react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { updatePriceAlert, deletePriceAlert } from '@/actions/alerts';
 import { formatDistance } from 'date-fns';
@@ -46,6 +47,7 @@ interface PriceAlertsListProps {
   livePrices?: Record<string, number>;
   onDelete: (id: string) => void;
   onToggle: (id: string) => void;
+  onRequestCreate?: () => void;
 }
 
 const cardTransition = { duration: 0.25, ease: 'easeOut' as const };
@@ -197,11 +199,12 @@ function PriceAlertCard({
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               {alert.logo && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={alert.logo}
                   alt=""
-                  className="h-5 w-5 rounded-full"
+                  width={20}
+                  height={20}
+                  className="rounded-full"
                   referrerPolicy="no-referrer"
                 />
               )}
@@ -392,7 +395,9 @@ function PriceAlertCard({
               </>
             )}
             <span className="text-muted-foreground/50 ml-auto font-mono text-[10px]">
-              {formatDistance(new Date(alert.created_at), new Date(), { addSuffix: true })}
+              {formatDistance(new Date(alert.created_at), new Date(), {
+                addSuffix: true,
+              })}
             </span>
           </div>
         </div>
@@ -401,14 +406,12 @@ function PriceAlertCard({
   );
 }
 
-function AddPriceAlertCard() {
+function AddPriceAlertCard({ onRequestCreate }: { onRequestCreate?: () => void }) {
   return (
     <motion.div layoutId="add-price-alert-card" layout transition={cardTransition}>
       <button
         type="button"
-        onClick={() => {
-          window.dispatchEvent(new CustomEvent('open-create-price-alert'));
-        }}
+        onClick={() => onRequestCreate?.()}
         className="border-primary/20 hover:border-primary/40 hover:bg-primary/5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-6 transition-colors"
       >
         <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
@@ -420,7 +423,13 @@ function AddPriceAlertCard() {
   );
 }
 
-export function PriceAlertsList({ alerts, livePrices, onDelete, onToggle }: PriceAlertsListProps) {
+export function PriceAlertsList({
+  alerts,
+  livePrices,
+  onDelete,
+  onToggle,
+  onRequestCreate,
+}: PriceAlertsListProps) {
   const deferredAlerts = useDeferredValue(alerts);
 
   return (
@@ -437,7 +446,7 @@ export function PriceAlertsList({ alerts, livePrices, onDelete, onToggle }: Pric
             />
           ))}
         </AnimatePresence>
-        <AddPriceAlertCard />
+        <AddPriceAlertCard onRequestCreate={onRequestCreate} />
       </div>
     </LayoutGroup>
   );

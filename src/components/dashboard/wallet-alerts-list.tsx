@@ -28,6 +28,7 @@ interface WalletAlertsListProps {
   alerts: WalletAlertWithStats[];
   onDelete: (id: string) => void;
   onToggle: (id: string) => void;
+  onRequestCreate?: () => void;
 }
 
 const cardTransition = { duration: 0.25, ease: 'easeOut' as const };
@@ -193,14 +194,12 @@ function WalletAlertCard({
   );
 }
 
-function AddWalletAlertCard() {
+function AddWalletAlertCard({ onRequestCreate }: { onRequestCreate?: () => void }) {
   return (
     <motion.div layoutId="add-wallet-alert-card" layout transition={cardTransition}>
       <button
         type="button"
-        onClick={() => {
-          window.dispatchEvent(new CustomEvent('open-create-wallet-alert'));
-        }}
+        onClick={() => onRequestCreate?.()}
         className="border-primary/20 hover:border-primary/40 hover:bg-primary/5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-6 transition-colors"
       >
         <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
@@ -212,7 +211,12 @@ function AddWalletAlertCard() {
   );
 }
 
-export function WalletAlertsList({ alerts, onDelete, onToggle }: WalletAlertsListProps) {
+export function WalletAlertsList({
+  alerts,
+  onDelete,
+  onToggle,
+  onRequestCreate,
+}: WalletAlertsListProps) {
   const deferredAlerts = useDeferredValue(alerts);
 
   return (
@@ -223,7 +227,7 @@ export function WalletAlertsList({ alerts, onDelete, onToggle }: WalletAlertsLis
             <WalletAlertCard key={alert.id} alert={alert} onDelete={onDelete} onToggle={onToggle} />
           ))}
         </AnimatePresence>
-        <AddWalletAlertCard />
+        <AddWalletAlertCard onRequestCreate={onRequestCreate} />
       </div>
     </LayoutGroup>
   );

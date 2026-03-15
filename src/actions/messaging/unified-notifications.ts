@@ -25,11 +25,15 @@ function buildNotificationResult(
   return { channels: channelResults, overallSuccess };
 }
 
+import type { Database } from '@/types/database';
+
+type DeliveryLogInsert = Database['public']['Tables']['alert_delivery_logs']['Insert'];
+
 function buildDeliveryLogEntry(
   notification: AlertNotification,
   channel: string,
   result: ChannelResult
-): Record<string, unknown> {
+): DeliveryLogInsert {
   return {
     alert_id: notification.alertId ?? notification.userId,
     user_id: notification.userId,
@@ -75,7 +79,7 @@ async function fetchActiveChannels(userId: string, alertType: string): Promise<C
   return (data as ChannelRow[]) ?? [];
 }
 
-async function persistDeliveryLog(entry: Record<string, unknown>): Promise<void> {
+async function persistDeliveryLog(entry: DeliveryLogInsert): Promise<void> {
   const supabase = createServiceSupabaseClient();
   await supabase.from('alert_delivery_logs').insert(entry);
 }

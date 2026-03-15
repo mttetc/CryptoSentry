@@ -68,29 +68,6 @@ function UsageInfo({
   );
 }
 
-function handleOptimisticAlertCreated(
-  data: { account: string; keywords: string[]; platform: string },
-  userId: string,
-  setAlerts: React.Dispatch<React.SetStateAction<SocialAlertWithStats[]>>
-) {
-  setAlerts((prev) => [
-    {
-      id: `optimistic-${Date.now()}`,
-      user_id: userId,
-      platform: data.platform,
-      account: data.account,
-      keywords: data.keywords,
-      is_active: true,
-      call_enabled: true,
-      created_at: new Date().toISOString(),
-      tweetCount: 0,
-      lastActivity: '',
-      recentTweets: [],
-    },
-    ...prev,
-  ]);
-}
-
 export function ModernDashboard({
   userId,
   initialAlerts,
@@ -113,6 +90,11 @@ export function ModernDashboard({
   const [polling, setPolling] = useState(true);
   const { play: playAlertSound } = useNotificationSound();
 
+  // Dialog open states (lifted from dialog components)
+  const [createAlertOpen, setCreateAlertOpen] = useState(false);
+  const [createPriceAlertOpen, setCreatePriceAlertOpen] = useState(false);
+  const [createWalletAlertOpen, setCreateWalletAlertOpen] = useState(false);
+
   const plan = planInfo?.plan ?? 'Free';
 
   // SSE connection
@@ -121,7 +103,6 @@ export function ModernDashboard({
       setLivePrices(data.prices);
     },
     onPriceTriggered: (data) => {
-      // Ignore stale triggers (direction changed since server evaluated)
       const matchingAlert = priceAlerts.find((a) => a.id === data.alertId);
       if (!matchingAlert || matchingAlert.direction !== data.direction) {
         return;
@@ -166,27 +147,18 @@ export function ModernDashboard({
     }
   };
 
-  // Listen for alert-created events
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as
-        | { account: string; keywords: string[]; platform: string }
-        | undefined;
-      if (detail) {
-        handleOptimisticAlertCreated(detail, userId, setAlerts);
+  const refreshWalletAlerts = async () => {
+    try {
+      const response = await fetch('/api/alerts/wallet');
+      if (!response.ok) {
+        return;
       }
-    };
-    const syncHandler = () => refreshAlerts();
-    const priceSyncHandler = () => refreshPriceAlerts();
-    window.addEventListener('alert-created', handler);
-    window.addEventListener('alert-synced', syncHandler);
-    window.addEventListener('price-alert-synced', priceSyncHandler);
-    return () => {
-      window.removeEventListener('alert-created', handler);
-      window.removeEventListener('alert-synced', syncHandler);
-      window.removeEventListener('price-alert-synced', priceSyncHandler);
-    };
-  }, []);
+      const data = await response.json();
+      setWalletAlerts(data.alerts || []);
+    } catch {
+      // Silent
+    }
+  };
 
   // Social polling only — price/whale handled by SSE/WebSocket
   const hasActiveAlerts = alerts.some((a) => a.is_active);
@@ -198,6 +170,29 @@ export function ModernDashboard({
     const interval = setInterval(refreshAlerts, 60_000);
     return () => clearInterval(interval);
   }, [hasActiveAlerts, polling]);
+
+  const handleOptimisticAlertCreated = (data: {
+    account: string;
+    keywords: string[];
+    platform: string;
+  }) => {
+    setAlerts((prev) => [
+      {
+        id: `optimistic-${Date.now()}`,
+        user_id: userId,
+        platform: data.platform,
+        account: data.account,
+        keywords: data.keywords,
+        is_active: true,
+        call_enabled: true,
+        created_at: new Date().toISOString(),
+        tweetCount: 0,
+        lastActivity: '',
+        recentTweets: [],
+      },
+      ...prev,
+    ]);
+  };
 
   const accounts = [...new Set(alerts.map((a) => a.account))];
   const filteredAlerts =
@@ -279,9 +274,10 @@ export function ModernDashboard({
                 )}
                 <CreateAlertDialog
                   userId={userId}
-                  onAlertCreated={(data) => {
-                    window.dispatchEvent(new CustomEvent('alert-created', { detail: data }));
-                  }}
+                  open={createAlertOpen}
+                  onOpenChange={setCreateAlertOpen}
+                  onAlertCreated={handleOptimisticAlertCreated}
+                  onSynced={refreshAlerts}
                 />
               </div>
             </div>
@@ -297,6 +293,7 @@ export function ModernDashboard({
                 );
               }}
               flashAlertIds={flashAlertIds}
+              onRequestCreate={() => setCreateAlertOpen(true)}
             />
           </TabsContent>
 
@@ -308,7 +305,11 @@ export function ModernDashboard({
                 label="Price alerts"
                 plan={plan}
               />
-              <CreatePriceAlertDialog />
+              <CreatePriceAlertDialog
+                open={createPriceAlertOpen}
+                onOpenChange={setCreatePriceAlertOpen}
+                onSynced={refreshPriceAlerts}
+              />
             </div>
             <PriceAlertsList
               alerts={priceAlerts}
@@ -321,6 +322,7 @@ export function ModernDashboard({
                   prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
                 );
               }}
+              onRequestCreate={() => setCreatePriceAlertOpen(true)}
             />
           </TabsContent>
 
@@ -332,7 +334,11 @@ export function ModernDashboard({
                 label="Whale alerts"
                 plan={plan}
               />
-              <CreateWalletAlertDialog />
+              <CreateWalletAlertDialog
+                open={createWalletAlertOpen}
+                onOpenChange={setCreateWalletAlertOpen}
+                onSynced={refreshWalletAlerts}
+              />
             </div>
             <WalletAlertsList
               alerts={walletAlerts}
@@ -344,6 +350,7 @@ export function ModernDashboard({
                   prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
                 );
               }}
+              onRequestCreate={() => setCreateWalletAlertOpen(true)}
             />
           </TabsContent>
 

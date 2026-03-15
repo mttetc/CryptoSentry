@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
 
 export interface PortfolioPosition {
   id: string;
@@ -11,7 +12,7 @@ export interface PortfolioPosition {
 }
 
 export async function getPortfolioPositions(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   userId: string
 ): Promise<PortfolioPosition[]> {
   const { data } = await supabase
@@ -20,5 +21,5 @@ export async function getPortfolioPositions(
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
-  return (data as PortfolioPosition[]) ?? [];
+  return data ?? [];
 }

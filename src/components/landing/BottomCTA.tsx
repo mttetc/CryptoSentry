@@ -1,7 +1,7 @@
 'use client';
 
 import NextLink from 'next/link';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { fadeInUp } from './animations';
 import { Button } from '@/components/ui/button';
 
@@ -12,7 +12,7 @@ export default function BottomCTA() {
         <div className="h-[300px] w-[500px] rounded-full bg-primary/5 blur-[100px]" />
       </div>
 
-      <motion.div
+      <m.div
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.5 }}
@@ -32,7 +32,7 @@ export default function BottomCTA() {
             </NextLink>
           </Button>
         </div>
-      </motion.div>
+      </m.div>
     </section>
   );
 }

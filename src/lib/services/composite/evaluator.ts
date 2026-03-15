@@ -67,7 +67,7 @@ async function fetchActiveCompositeAlerts(userId: string): Promise<CompositeAler
   const supabase = createServiceSupabaseClient();
   const { data, error } = await supabase
     .from('composite_alerts')
-    .select('*')
+    .select('id, name, conditions, time_window_minutes')
     .eq('user_id', userId)
     .eq('is_active', true);
 

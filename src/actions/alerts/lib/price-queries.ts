@@ -9,7 +9,9 @@ export const getPriceAlertsWithStats = cache(async function getPriceAlertsWithSt
 ): Promise<PriceAlertWithStats[]> {
   const { data: alerts, error } = await supabase
     .from('price_alerts')
-    .select('*')
+    .select(
+      'id, user_id, symbol, binance_symbol, logo, target_price, direction, is_active, recurring, triggered_at, last_triggered_at, created_at'
+    )
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 

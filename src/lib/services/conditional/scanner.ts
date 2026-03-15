@@ -94,7 +94,7 @@ async function fetchActiveRules(): Promise<ConditionalRuleRow[]> {
   const supabase = createServiceSupabaseClient();
   const { data, error } = await supabase
     .from('conditional_rules')
-    .select('*')
+    .select('id, user_id, name, rule_type, config, time_window_minutes')
     .eq('is_active', true);
 
   if (error) {

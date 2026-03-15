@@ -20,7 +20,7 @@ export const getSocialAlertsWithStats = cache(async function getSocialAlertsWith
 ): Promise<SocialAlertWithStats[]> {
   const { data: alerts, error } = await supabase
     .from('social_alerts')
-    .select('*')
+    .select('id, user_id, platform, account, keywords, is_active, call_enabled, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
@@ -38,7 +38,7 @@ export const getSocialAlertsWithStats = cache(async function getSocialAlertsWith
 
   const { data: allTriggers } = await supabase
     .from('alert_triggers')
-    .select('*')
+    .select('id, alert_id, data, triggered_at')
     .in('alert_id', alertIds)
     .gte('triggered_at', cutoff)
     .order('triggered_at', { ascending: false });

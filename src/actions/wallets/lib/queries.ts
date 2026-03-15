@@ -9,7 +9,7 @@ export const getWalletAlertsWithStats = cache(async function getWalletAlertsWith
 ): Promise<WalletAlertWithStats[]> {
   const { data: alerts, error } = await supabase
     .from('wallet_alerts')
-    .select('*')
+    .select('id, user_id, address, label, chain, min_value_usd, is_active, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 

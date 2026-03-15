@@ -116,7 +116,10 @@ function filterBySentiment(matches: AnalyzedMatch[]): AnalyzedMatch[] {
 
 export async function fetchActiveAlerts(): Promise<SocialAlertRow[]> {
   const supabase = createServiceSupabaseClient();
-  const { data, error } = await supabase.from('social_alerts').select('*').eq('is_active', true);
+  const { data, error } = await supabase
+    .from('social_alerts')
+    .select('id, user_id, platform, keywords, sentiment_filter, account, call_enabled')
+    .eq('is_active', true);
 
   if (error) {
     console.error('[Pipeline] Error loading alerts:', error);
@@ -231,9 +234,7 @@ export async function processTweets(
 
   const results = await Promise.allSettled(
     filtered.map(({ alert, tweet, sentiment, summary }) =>
-      onTrigger
-        ? onTrigger(alert, tweet)
-        : triggerAlert(alert, tweet, sentiment, summary)
+      onTrigger ? onTrigger(alert, tweet) : triggerAlert(alert, tweet, sentiment, summary)
     )
   );
 

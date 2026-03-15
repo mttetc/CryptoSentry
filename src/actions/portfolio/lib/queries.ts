@@ -17,7 +17,7 @@ export async function getPortfolioPositions(
 ): Promise<PortfolioPosition[]> {
   const { data } = await supabase
     .from('user_portfolios')
-    .select('*')
+    .select('id, user_id, symbol, binance_symbol, amount, avg_buy_price, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 

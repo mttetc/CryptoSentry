@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { LogOut } from 'lucide-react';
+import { LogOut, Settings } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 
 interface DashboardHeaderProps {
@@ -31,21 +31,29 @@ export function DashboardHeader({ userEmail }: DashboardHeaderProps) {
   }
 
   return (
-    <header className="bg-background/80 fixed top-0 right-0 left-0 z-50 border-b backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <LogoMark size={20} />
-          <span className="text-sm font-semibold tracking-tight">CryptoSentry</span>
+    <header className="bg-background/85 fixed top-0 right-0 left-0 z-50 border-b border-white/[0.08] backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6 lg:px-10">
+        <Link href="/dashboard" className="flex items-center gap-2.5">
+          <LogoMark size={22} />
+          <span className="font-display text-[17px] font-semibold tracking-tight">
+            CryptoSentry
+          </span>
         </Link>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           {userEmail && (
-            <span className="text-muted-foreground hidden text-sm lg:inline">{userEmail}</span>
+            <span className="text-ink-muted hidden font-mono text-xs lg:inline">{userEmail}</span>
           )}
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/settings">
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+          </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="sm">
-                <LogOut className="mr-1.5 h-4 w-4" />
+                <LogOut className="h-4 w-4" />
                 Sign out
               </Button>
             </AlertDialogTrigger>

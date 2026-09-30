@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card } from '@/components/ui/card';
 import { Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SocialAlertWithStats, AlertTweet } from '@/types/alerts';
@@ -186,10 +187,21 @@ export function LiveFeed({
   const hasContent = items.length > 0 || triggerItems.length > 0;
 
   return (
-    <div className="bg-card rounded-xl border">
-      <div className="flex items-center gap-2 border-b px-4 py-3">
-        <div className="bg-primary h-2 w-2 animate-pulse rounded-full" />
-        <span className="text-muted-foreground font-mono text-sm">Live Feed</span>
+    <Card className="gap-0 overflow-hidden py-0 shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
+      <div className="text-ink-muted flex h-11 items-center justify-between border-b px-4 font-mono text-xs">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#2A3531]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#2A3531]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#2A3531]" />
+          <span className="ml-2">sentry · live feed</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="bg-primary/60 animate-sentry-ping absolute inline-flex h-full w-full rounded-full" />
+            <span className="bg-primary relative inline-flex h-1.5 w-1.5 rounded-full" />
+          </span>
+          live
+        </div>
       </div>
       {hasContent ? (
         <ScrollArea className="h-[400px]">
@@ -225,6 +237,6 @@ export function LiveFeed({
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

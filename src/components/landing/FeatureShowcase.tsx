@@ -2,6 +2,7 @@
 
 import { m } from 'motion/react';
 import { fadeInUp, staggerRows } from './animations';
+import { SectionHeading } from './SectionHeading';
 
 const features = [
   {
@@ -41,20 +42,13 @@ export default function FeatureShowcase() {
   return (
     <section id="features" className="bg-ground-2 scroll-mt-20 border-y border-white/[0.08] py-24">
       <div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-12 lg:gap-8 lg:px-10">
-        <m.div
-          variants={fadeInUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.3 }}
-          className="flex flex-col gap-3.5 lg:col-span-4"
-        >
-          <span className="text-primary font-mono text-xs tracking-[0.12em] uppercase">
-            What is in the box
-          </span>
-          <h2 className="font-display text-3xl leading-[1.05] font-semibold tracking-[-0.03em] md:text-[40px]">
-            Built for people who trade the news, not the noise.
-          </h2>
-        </m.div>
+        <SectionHeading
+          eyebrow="What is in the box"
+          title="Built for people who trade the news, not the noise."
+          layout="stack"
+          standalone
+          className="lg:col-span-4"
+        />
 
         {/* Spec sheet: hairline rows, index + title left, description right */}
         <m.dl

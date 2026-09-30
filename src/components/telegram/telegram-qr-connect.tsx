@@ -8,6 +8,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { MessageSquare, CircleCheck, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -106,10 +107,10 @@ export function TelegramQrConnect({ initialLink, isConnected }: TelegramQrConnec
 
   if (connected) {
     return (
-      <div className="flex items-center gap-3 rounded-lg border border-green-500/20 bg-green-500/5 px-4 py-3">
-        <CircleCheck className="h-5 w-5 shrink-0 text-green-500" />
+      <Card className="flex-row items-center gap-3 border-[rgba(34,197,94,0.3)] bg-[rgba(34,197,94,0.06)] px-4 py-3">
+        <CircleCheck className="text-primary h-5 w-5 shrink-0" />
         <div className="flex-1">
-          <span className="text-sm font-medium text-green-500">Telegram connected</span>
+          <span className="text-primary text-sm font-medium">Telegram connected</span>
           <p className="text-muted-foreground text-xs">You will receive alerts via Telegram.</p>
         </div>
         <AlertDialog>
@@ -131,13 +132,13 @@ export function TelegramQrConnect({ initialLink, isConnected }: TelegramQrConnec
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
+      </Card>
     );
   }
 
   if (expired) {
     return (
-      <div className="flex items-center gap-5 rounded-lg border px-4 py-3">
+      <Card className="flex-row items-center gap-5 px-4 py-3">
         <div className="flex-1 space-y-1">
           <div className="flex items-center gap-2">
             <MessageSquare className="text-primary h-4 w-4" />
@@ -151,12 +152,12 @@ export function TelegramQrConnect({ initialLink, isConnected }: TelegramQrConnec
           <RefreshCw className={refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
           New link
         </Button>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="flex items-center gap-5 rounded-lg border px-4 py-3">
+    <Card className="flex-row items-center gap-5 px-4 py-3">
       <div className="shrink-0 rounded-md bg-white p-1.5">
         <QRCodeSVG value={link} size={80} />
       </div>
@@ -177,6 +178,6 @@ export function TelegramQrConnect({ initialLink, isConnected }: TelegramQrConnec
           Or click here to open Telegram
         </a>
       </div>
-    </div>
+    </Card>
   );
 }

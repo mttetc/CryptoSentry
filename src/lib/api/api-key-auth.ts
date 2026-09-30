@@ -1,19 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
+import { checkFeatureAccess } from '@/lib/config/plans';
+import { ApiError } from './api-error';
 
 export interface ApiAuthResult {
   userId: string;
   apiKeyId: string;
   scopes: string[];
-}
-
-interface ApiKeyRow {
-  id: string;
-  user_id: string;
-  scopes: string[];
-  rate_limit: number;
-  is_active: boolean;
-  expires_at: string | null;
 }
 
 /**
@@ -30,7 +23,7 @@ export function generateApiKey(): { key: string; hash: string; prefix: string } 
 
 /**
  * Authenticate an API request via Bearer token.
- * Validates the key, checks expiry, verifies scope, and enforces rate limits.
+ * Validates the key, checks expiry, verifies scope, re-checks the plan and enforces rate limits.
  */
 export async function requireApiAuth(
   request: Request,
@@ -38,7 +31,7 @@ export async function requireApiAuth(
 ): Promise<ApiAuthResult> {
   const header = request.headers.get('authorization');
   if (!header?.startsWith('Bearer ')) {
-    throw new Error('Missing API key');
+    throw new ApiError('Missing API key', 401);
   }
 
   const key = header.slice(7);
@@ -49,20 +42,24 @@ export async function requireApiAuth(
     .from('api_keys')
     .select('id, user_id, scopes, rate_limit, is_active, expires_at')
     .eq('key_hash', hash)
-    .single();
+    .maybeSingle();
 
   if (!apiKey || !apiKey.is_active) {
-    throw new Error('Invalid API key');
+    throw new ApiError('Invalid API key', 401);
   }
 
-  const typedKey = apiKey as ApiKeyRow;
-
-  if (typedKey.expires_at && new Date(typedKey.expires_at) < new Date()) {
-    throw new Error('API key expired');
+  if (apiKey.expires_at && new Date(apiKey.expires_at) < new Date()) {
+    throw new ApiError('API key expired', 403);
   }
 
-  if (requiredScope && !typedKey.scopes.includes(requiredScope)) {
-    throw new Error('Insufficient scope');
+  if (requiredScope && !apiKey.scopes.includes(requiredScope)) {
+    throw new ApiError('Insufficient scope', 403);
+  }
+
+  // Plan can change after the key was issued (downgrade, expiry).
+  const access = await checkFeatureAccess(apiKey.user_id, 'api');
+  if (!access.allowed) {
+    throw new ApiError('API access requires the Premium plan', 403);
   }
 
   // Rate limit check: count requests in the last hour
@@ -70,43 +67,50 @@ export async function requireApiAuth(
   const { count } = await supabase
     .from('api_request_logs')
     .select('*', { count: 'exact', head: true })
-    .eq('api_key_id', typedKey.id)
+    .eq('api_key_id', apiKey.id)
     .gte('created_at', oneHourAgo);
 
-  if ((count ?? 0) >= typedKey.rate_limit) {
-    throw new Error('Rate limit exceeded');
+  if ((count ?? 0) >= apiKey.rate_limit) {
+    throw new ApiError('Rate limit exceeded', 429);
   }
 
   // Update last_used_at (fire-and-forget)
-  supabase
+  void supabase
     .from('api_keys')
     .update({ last_used_at: new Date().toISOString() })
-    .eq('id', typedKey.id)
-    .then(() => {
-      // Intentionally empty - fire and forget
+    .eq('id', apiKey.id)
+    .then(({ error }) => {
+      if (error) {
+        console.error('[API] Failed to update last_used_at:', error);
+      }
     });
 
   return {
-    userId: typedKey.user_id,
-    apiKeyId: typedKey.id,
-    scopes: typedKey.scopes,
+    userId: apiKey.user_id,
+    apiKeyId: apiKey.id,
+    scopes: apiKey.scopes,
   };
 }
 
 /**
- * Log an API request for rate limiting and audit purposes.
+ * Log an API request for rate limiting and audit purposes. Fire-and-forget safe.
  */
-export async function logApiRequest(
+export function logApiRequest(
   apiKeyId: string,
   endpoint: string,
   method: string,
   statusCode: number
-): Promise<void> {
+): void {
+  if (!apiKeyId) {
+    return;
+  }
   const supabase = createServiceSupabaseClient();
-  await supabase.from('api_request_logs').insert({
-    api_key_id: apiKeyId,
-    endpoint,
-    method,
-    status_code: statusCode,
-  });
+  void supabase
+    .from('api_request_logs')
+    .insert({ api_key_id: apiKeyId, endpoint, method, status_code: statusCode })
+    .then(({ error }) => {
+      if (error) {
+        console.error('[API] Failed to log request:', error);
+      }
+    });
 }

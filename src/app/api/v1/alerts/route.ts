@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { requireApiAuth, logApiRequest } from '@/lib/api/api-key-auth';
+import { ApiError, apiErrorResponse } from '@/lib/api/api-error';
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
+import { checkAlertLimit, checkSocialAlertLimits } from '@/lib/config/plans';
+import { socialAlertSchema } from '@/actions/alerts/schemas';
+import { priceAlertSchema } from '@/actions/alerts/schemas/price-alert-schemas';
+import { socialMonitor } from '@/lib/services/twitter/social-monitor';
+import { priceAlertWorker } from '@/lib/services/price/price-alert-worker';
+
+const ENDPOINT = '/api/v1/alerts';
+
+const createAlertSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('social') }).extend(socialAlertSchema.shape),
+  z.object({ type: z.literal('price') }).extend(priceAlertSchema.shape),
+]);
 
 export async function GET(request: Request) {
   let apiKeyId = '';
@@ -14,37 +28,36 @@ export async function GET(request: Request) {
     const [socialResult, priceResult] = await Promise.all([
       supabase
         .from('social_alerts')
-        .select('*')
+        .select(
+          'id, platform, account, keywords, include_replies, sentiment_filter, is_active, created_at'
+        )
         .eq('user_id', auth.userId)
         .order('created_at', { ascending: false }),
       supabase
         .from('price_alerts')
-        .select('*')
+        .select(
+          'id, symbol, binance_symbol, target_price, direction, recurring, is_active, triggered_at, last_triggered_at, created_at'
+        )
         .eq('user_id', auth.userId)
         .order('created_at', { ascending: false }),
     ]);
 
-    const response = {
-      social_alerts: socialResult.data ?? [],
-      price_alerts: priceResult.data ?? [],
-    };
-
-    logApiRequest(apiKeyId, '/api/v1/alerts', 'GET', 200).catch(() => {
-      // Fire and forget
-    });
-
-    return NextResponse.json(response);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal server error';
-    const status = getErrorStatus(message);
-
-    if (apiKeyId) {
-      logApiRequest(apiKeyId, '/api/v1/alerts', 'GET', status).catch(() => {
-        // Fire and forget
-      });
+    if (socialResult.error) {
+      throw socialResult.error;
+    }
+    if (priceResult.error) {
+      throw priceResult.error;
     }
 
-    return NextResponse.json({ error: message }, { status });
+    logApiRequest(apiKeyId, ENDPOINT, 'GET', 200);
+    return NextResponse.json({
+      social_alerts: socialResult.data ?? [],
+      price_alerts: priceResult.data ?? [],
+    });
+  } catch (error) {
+    const response = apiErrorResponse(error);
+    logApiRequest(apiKeyId, ENDPOINT, 'GET', response.status);
+    return response;
   }
 }
 
@@ -55,96 +68,93 @@ export async function POST(request: Request) {
     const auth = await requireApiAuth(request, 'alerts:write');
     apiKeyId = auth.apiKeyId;
 
-    const body = (await request.json()) as Record<string, unknown>;
-    const alertType = String(body.type ?? '');
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      throw new ApiError('Invalid JSON', 400);
+    }
 
-    if (alertType !== 'social' && alertType !== 'price') {
+    const parsed = createAlertSchema.safeParse(body);
+    if (!parsed.success) {
+      logApiRequest(apiKeyId, ENDPOINT, 'POST', 400);
       return NextResponse.json(
-        { error: 'Invalid alert type. Must be "social" or "price".' },
+        { error: 'Validation failed', details: parsed.error.flatten() },
         { status: 400 }
       );
     }
 
     const supabase = createServiceSupabaseClient();
+    const input = parsed.data;
 
-    if (alertType === 'social') {
+    if (input.type === 'social') {
+      const limits = await checkSocialAlertLimits(auth.userId, {
+        account: input.account,
+        keywords: input.keywords,
+        includeReplies: input.includeReplies,
+      });
+      if (!limits.allowed) {
+        throw new ApiError(limits.error ?? 'Plan limit reached', 402);
+      }
+
       const { data, error } = await supabase
         .from('social_alerts')
         .insert({
           user_id: auth.userId,
-          platform: String(body.platform ?? 'twitter'),
-          account: String(body.account ?? ''),
-          keywords: (body.keywords as string[]) ?? [],
+          platform: input.platform,
+          account: input.account,
+          keywords: input.keywords,
+          include_replies: input.includeReplies,
+          call_enabled: input.callEnabled,
+          sentiment_filter: input.sentimentFilter ?? null,
           is_active: true,
         })
-        .select()
+        .select(
+          'id, platform, account, keywords, include_replies, sentiment_filter, is_active, created_at'
+        )
         .single();
 
       if (error) {
         throw error;
       }
 
-      logApiRequest(apiKeyId, '/api/v1/alerts', 'POST', 201).catch(() => {
-        // Fire and forget
-      });
-
+      socialMonitor.refreshAlerts().catch(console.error);
+      logApiRequest(apiKeyId, ENDPOINT, 'POST', 201);
       return NextResponse.json(data, { status: 201 });
     }
 
-    // Price alert
-    const validDirections = ['above', 'below', 'exact'] as const;
-    const rawDirection = String(body.direction ?? 'above');
-    const direction = validDirections.includes(rawDirection as (typeof validDirections)[number])
-      ? (rawDirection as (typeof validDirections)[number])
-      : 'above';
+    const limit = await checkAlertLimit(auth.userId);
+    if (!limit.allowed) {
+      throw new ApiError(limit.error ?? 'Plan limit reached', 402);
+    }
 
     const { data, error } = await supabase
       .from('price_alerts')
       .insert({
         user_id: auth.userId,
-        symbol: String(body.symbol ?? ''),
-        binance_symbol: String(body.binanceSymbol ?? ''),
-        target_price: Number(body.targetPrice ?? 0),
-        direction,
+        symbol: input.symbol,
+        binance_symbol: input.binanceSymbol,
+        logo: input.logo,
+        target_price: input.targetPrice,
+        direction: input.direction,
+        recurring: input.recurring,
         is_active: true,
       })
-      .select()
+      .select(
+        'id, symbol, binance_symbol, target_price, direction, recurring, is_active, created_at'
+      )
       .single();
 
     if (error) {
       throw error;
     }
 
-    logApiRequest(apiKeyId, '/api/v1/alerts', 'POST', 201).catch(() => {
-      // Fire and forget
-    });
-
+    priceAlertWorker.refreshAlerts().catch(console.error);
+    logApiRequest(apiKeyId, ENDPOINT, 'POST', 201);
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal server error';
-    const status = getErrorStatus(message);
-
-    if (apiKeyId) {
-      logApiRequest(apiKeyId, '/api/v1/alerts', 'POST', status).catch(() => {
-        // Fire and forget
-      });
-    }
-
-    return NextResponse.json({ error: message }, { status });
+    const response = apiErrorResponse(error);
+    logApiRequest(apiKeyId, ENDPOINT, 'POST', response.status);
+    return response;
   }
-}
-
-// --- Helpers ---
-
-function getErrorStatus(message: string): number {
-  if (message === 'Missing API key' || message === 'Invalid API key') {
-    return 401;
-  }
-  if (message === 'API key expired' || message === 'Insufficient scope') {
-    return 403;
-  }
-  if (message === 'Rate limit exceeded') {
-    return 429;
-  }
-  return 500;
 }

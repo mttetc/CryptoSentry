@@ -1,33 +1,29 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireAuthFromRequest, AuthError } from '@/lib/api/auth';
 import { processTweets } from '@/lib/services/twitter/pipeline';
-import type { SocialAlertRow, TweetData, PipelineDeps } from '@/lib/services/twitter/types';
+import type { SocialAlertRow, TweetData } from '@/lib/services/twitter/types';
+
+/**
+ * Development-only endpoint to push fake tweets through the pipeline without X.
+ * Disabled in production: the real source is the X filtered stream started in instrumentation.ts.
+ */
 
 const tweetSchema = z.object({
   id: z.string(),
   text: z.string(),
-  author: z.object({
-    userName: z.string(),
-    displayName: z.string(),
-  }),
-  createdAt: z.string(),
-  url: z.string(),
-  engagement: z
-    .object({
-      likes: z.number(),
-      retweets: z.number(),
-      replies: z.number(),
-    })
-    .optional(),
+  type: z.enum(['original', 'reply', 'retweet', 'quote']).default('original'),
+  author: z.object({ userName: z.string() }),
+  createdAt: z.string().default(() => new Date().toISOString()),
+  url: z.string().optional(),
 });
 
 const alertSchema = z.object({
   id: z.string(),
   user_id: z.string(),
-  platform: z.string(),
+  platform: z.string().default('twitter'),
   account: z.string(),
   keywords: z.array(z.string()),
+  include_replies: z.boolean().optional(),
 });
 
 const ingestSchema = z.object({
@@ -38,23 +34,14 @@ const ingestSchema = z.object({
 function devTrigger(alert: SocialAlertRow, tweet: TweetData): Promise<void> {
   console.warn(
     `[DEV TRIGGER] Alert "${alert.id}" matched tweet "${tweet.id}" ` +
-    `(@${tweet.author.userName}: "${tweet.text.slice(0, 60)}")`
+      `(@${tweet.author.userName}: "${tweet.text.slice(0, 60)}")`
   );
   return Promise.resolve();
 }
 
 export async function POST(request: NextRequest) {
-  const isDev = process.env.NODE_ENV === 'development';
-
-  if (!isDev) {
-    try {
-      await requireAuthFromRequest(request);
-    } catch (error) {
-      if (error instanceof AuthError) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
+  if (process.env.NODE_ENV !== 'development') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
   let body: unknown;
@@ -72,14 +59,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  try {
-    // In dev with explicit alerts in body: use those + log-only trigger
-    // Otherwise (dev without alerts, or prod): fetch from Supabase + real triggers
-    const deps: PipelineDeps | undefined = isDev && parsed.data.alerts
-      ? { alerts: parsed.data.alerts, onTrigger: devTrigger }
-      : undefined;
+  const tweets: TweetData[] = parsed.data.tweets.map((t) => ({
+    ...t,
+    url: t.url ?? `https://x.com/${t.author.userName}/status/${t.id}`,
+  }));
 
-    const result = await processTweets(parsed.data.tweets, deps);
+  try {
+    // With explicit alerts: log-only triggers, no DB. Without: real alerts + real notifications (dev DB).
+    const result = await processTweets(
+      tweets,
+      parsed.data.alerts
+        ? { alerts: parsed.data.alerts, onTrigger: devTrigger, skipPersistence: true }
+        : undefined
+    );
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
     console.error('[Ingest] Error processing tweets:', error);

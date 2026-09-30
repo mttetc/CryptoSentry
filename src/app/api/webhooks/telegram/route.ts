@@ -1,4 +1,6 @@
+import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
 import {
   sendTelegramMessage,
@@ -6,9 +8,36 @@ import {
 } from '@/actions/messaging/providers/telegram/telegram-utils';
 import { verifyConnectToken } from '@/lib/telegram-connect-token';
 
-const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET ?? 'cryptosentry-webhook-secret';
+// --- Payload validation (only the fields we use) ---
+
+const updateSchema = z.object({
+  message: z
+    .object({
+      chat: z.object({ id: z.union([z.number(), z.string()]) }),
+      from: z.object({ id: z.union([z.number(), z.string()]) }).optional(),
+      text: z.string().optional(),
+    })
+    .optional(),
+  callback_query: z
+    .object({
+      id: z.string(),
+      data: z.string().optional(),
+      message: z.object({ chat: z.object({ id: z.union([z.number(), z.string()]) }) }).optional(),
+    })
+    .optional(),
+});
 
 // --- Pure functions ---
+
+function secretMatches(header: string | null): boolean {
+  const expected = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (!expected || !header) {
+    return false;
+  }
+  const a = Buffer.from(header);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 function parseConnectToken(text: string): string | null {
   if (!text.startsWith('/start ')) {
@@ -19,31 +48,33 @@ function parseConnectToken(text: string): string | null {
 
 // --- Single-responsibility I/O ---
 
-async function handleCallbackQuery(callbackQuery: Record<string, unknown>): Promise<void> {
-  const data = callbackQuery.data as string;
-  const chatId = (callbackQuery.message as Record<string, unknown>).chat as Record<string, unknown>;
-
-  if (data.startsWith('action_') && data.replace('action_', '') === 'help') {
+async function handleCallbackQuery(
+  query: z.infer<typeof updateSchema>['callback_query']
+): Promise<void> {
+  if (!query) {
+    return;
+  }
+  if (query.data === 'action_help' && query.message) {
     await sendTelegramMessage(
-      String(chatId.id),
-      'CryptoSentry is a cryptocurrency monitoring service. You will receive alerts about significant price movements and other important events.'
+      String(query.message.chat.id),
+      'CryptoSentry sends you alerts when the X accounts you watch mention your keywords, and when prices cross your targets.'
     );
   }
-
-  await answerCallbackQuery(callbackQuery.id as string);
+  await answerCallbackQuery(query.id);
 }
 
 async function handleConnectCommand(appUserId: string, telegramChatId: string): Promise<void> {
   const supabase = createServiceSupabaseClient();
 
-  const { error } = await supabase
-    .from('user_telegram_settings')
-    .upsert({
+  const { error } = await supabase.from('user_telegram_settings').upsert(
+    {
       user_id: appUserId,
       telegram_chat_id: telegramChatId,
       status: 'connected',
       updated_at: new Date().toISOString(),
-    });
+    },
+    { onConflict: 'user_id' }
+  );
 
   if (error) {
     console.error('Failed to update telegram settings:', error);
@@ -52,21 +83,37 @@ async function handleConnectCommand(appUserId: string, telegramChatId: string): 
 
   await sendTelegramMessage(
     telegramChatId,
-    'Your Telegram account has been successfully connected! You will now receive notifications here.'
+    'Your Telegram account is connected. You will receive your CryptoSentry alerts here.'
   );
 }
 
 // --- Route handler ---
 
 export async function POST(request: Request) {
-  try {
-    // Verify secret token (set during webhook registration)
-    const secretToken = request.headers.get('x-telegram-bot-api-secret-token');
-    if (secretToken !== WEBHOOK_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  if (!process.env.TELEGRAM_WEBHOOK_SECRET) {
+    console.error('[Telegram] TELEGRAM_WEBHOOK_SECRET is not set; refusing webhook traffic');
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 });
+  }
 
-    const update = await request.json();
+  if (!secretMatches(request.headers.get('x-telegram-bot-api-secret-token'))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  const parsed = updateSchema.safeParse(body);
+  if (!parsed.success) {
+    // Always 200 to Telegram for unknown update shapes, otherwise it retries forever.
+    return NextResponse.json({ success: true, ignored: true });
+  }
+
+  try {
+    const update = parsed.data;
 
     if (update.callback_query) {
       await handleCallbackQuery(update.callback_query);
@@ -74,19 +121,21 @@ export async function POST(request: Request) {
     }
 
     const message = update.message;
-    if (!message?.from?.id) {
-      return NextResponse.json({ success: true }); // Ignore non-message updates
+    if (!message?.from) {
+      return NextResponse.json({ success: true });
     }
 
     const chatId = String(message.chat.id);
-    const connectToken = parseConnectToken(message.text || '');
+    const connectToken = parseConnectToken(message.text ?? '');
 
     if (connectToken) {
-      const { userId: appUserId, valid } = verifyConnectToken(connectToken);
+      const { userId: appUserId, valid, reason } = verifyConnectToken(connectToken);
       if (!valid) {
         await sendTelegramMessage(
           chatId,
-          'This connect link is invalid. Please scan a new QR code from your dashboard.'
+          reason === 'expired'
+            ? 'This connect link has expired. Open your dashboard and scan the new QR code.'
+            : 'This connect link is invalid. Open your dashboard and scan the QR code again.'
         );
         return NextResponse.json({ success: true });
       }

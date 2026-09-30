@@ -53,9 +53,7 @@ export async function getOptionalSession() {
     headers: await headers(),
   });
 
-  const supabase = session?.user.id
-    ? createServiceSupabaseClient()
-    : null;
+  const supabase = session?.user.id ? createServiceSupabaseClient() : null;
 
   return { supabase, session };
 }

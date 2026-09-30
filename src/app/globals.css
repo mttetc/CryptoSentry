@@ -261,3 +261,21 @@
     color: var(--color-foreground);
   }
 }
+
+/* Second animation of --animate-brand-dot, at top level so Tailwind always emits it */
+@keyframes brand-dot-shape {
+  0%,
+  40% {
+    border-radius: 1px;
+    transform: scale(1) rotate(0deg);
+  }
+  50%,
+  90% {
+    border-radius: 50%;
+    transform: scale(1.18) rotate(90deg);
+  }
+  100% {
+    border-radius: 1px;
+    transform: scale(1) rotate(0deg);
+  }
+}

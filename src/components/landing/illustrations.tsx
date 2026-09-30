@@ -171,38 +171,30 @@ interface Candle {
   low: number;
 }
 
-// Nine candles, the last one is the move the signal announced.
+// Twelve candles on a quiet drift, the last one is the move the signal announced.
+// Y grows downwards: close < open means the candle went up.
 const CANDLES: Candle[] = [
-  { x: 60, open: 150, close: 132, high: 122, low: 158 },
-  { x: 180, open: 132, close: 141, high: 126, low: 149 },
-  { x: 300, open: 141, close: 118, high: 110, low: 146 },
-  { x: 420, open: 118, close: 126, high: 108, low: 133 },
-  { x: 540, open: 126, close: 104, high: 98, low: 131 },
-  { x: 660, open: 104, close: 112, high: 96, low: 118 },
-  { x: 780, open: 112, close: 96, high: 88, low: 116 },
-  { x: 900, open: 96, close: 102, high: 90, low: 108 },
-  { x: 1020, open: 102, close: 40, high: 32, low: 106 },
+  { x: 60, open: 138, close: 130, high: 124, low: 142 },
+  { x: 150, open: 130, close: 136, high: 126, low: 141 },
+  { x: 240, open: 136, close: 124, high: 119, low: 139 },
+  { x: 330, open: 124, close: 129, high: 118, low: 134 },
+  { x: 420, open: 129, close: 116, high: 111, low: 132 },
+  { x: 510, open: 116, close: 121, high: 110, low: 126 },
+  { x: 600, open: 121, close: 112, high: 106, low: 124 },
+  { x: 690, open: 112, close: 118, high: 108, low: 122 },
+  { x: 780, open: 118, close: 108, high: 102, low: 121 },
+  { x: 870, open: 108, close: 112, high: 103, low: 116 },
+  { x: 960, open: 112, close: 106, high: 100, low: 115 },
+  { x: 1080, open: 106, close: 44, high: 36, low: 110 },
 ];
 
-const HERO_STEP_S = 0.55;
-
-function candleColor(isLast: boolean, up: boolean): string {
-  if (isLast) {
-    return '#22C55E';
-  }
-  return up ? 'currentColor' : '#F0645A';
-}
-
-function candleFill(isLast: boolean, up: boolean): number {
-  if (isLast) {
-    return 0.85;
-  }
-  return up ? 0.22 : 0.3;
-}
+const HERO_STEP_S = 0.45;
+const BODY_W = 14;
 
 /**
- * Full-width hero illustration: a candlestick chart draws itself candle by candle, a ping
- * appears before the last candle, then that candle makes the move. Loops with a long hold.
+ * Full-width hero illustration: a candlestick chart draws itself candle by candle, then the
+ * last one makes the move. Loops with a long hold.
+ * Past candles share one muted tone: hollow when they closed up, filled when they closed down.
  */
 export function HeroChartArt({ className }: ArtProps) {
   const last = CANDLES.length - 1;
@@ -214,17 +206,19 @@ export function HeroChartArt({ className }: ArtProps) {
       className={cn('text-ink-soft h-full w-full', className)}
       aria-hidden="true"
     >
-      {/* Ground rules */}
-      <path d="M0 176H1200" stroke="currentColor" strokeOpacity="0.14" />
-      <path d="M0 116H1200" stroke="currentColor" strokeOpacity="0.06" strokeDasharray="2 10" />
-      <path d="M0 56H1200" stroke="currentColor" strokeOpacity="0.06" strokeDasharray="2 10" />
+      <path d="M0 176.5H1200" stroke="currentColor" strokeOpacity="0.16" />
 
       {CANDLES.map((c, i) => {
         const isLast = i === last;
         const up = c.close < c.open;
         const top = Math.min(c.open, c.close);
-        const height = Math.max(Math.abs(c.open - c.close), 3);
-        const color = candleColor(isLast, up);
+        const height = Math.max(Math.abs(c.open - c.close), 2);
+        let bodyFill = 'currentColor';
+        if (isLast) {
+          bodyFill = '#22C55E';
+        } else if (up) {
+          bodyFill = 'none';
+        }
         return (
           <g
             key={c.x}
@@ -237,60 +231,25 @@ export function HeroChartArt({ className }: ArtProps) {
           >
             <path
               d={`M${c.x} ${c.high}V${c.low}`}
-              stroke={color}
-              strokeOpacity={isLast ? 0.9 : 0.35}
-              strokeWidth={1.5}
+              stroke={isLast ? '#22C55E' : 'currentColor'}
+              strokeOpacity={isLast ? 0.9 : 0.45}
+              strokeWidth={1}
             />
             <rect
-              x={c.x - 14}
+              x={c.x - BODY_W / 2}
               y={top}
-              width={28}
+              width={BODY_W}
               height={height}
-              rx={2}
-              fill={color}
-              fillOpacity={candleFill(isLast, up)}
-              stroke={color}
+              rx={1.5}
+              fill={bodyFill}
+              fillOpacity={isLast ? 0.9 : 0.35}
+              stroke={isLast ? '#22C55E' : 'currentColor'}
               strokeOpacity={isLast ? 1 : 0.45}
-              strokeWidth={1.5}
+              strokeWidth={1}
             />
           </g>
         );
       })}
-
-      {/* The signal, ahead of the last candle */}
-      <g
-        className="animate-candle motion-reduce:animate-none"
-        style={{
-          animationDelay: `${last * HERO_STEP_S + 0.5}s`,
-          transformOrigin: '960px 176px',
-          transformBox: 'view-box',
-        }}
-      >
-        <path
-          d="M948 128a26 26 0 0 1 26 26"
-          stroke="#22C55E"
-          strokeOpacity="0.35"
-          strokeWidth={1.5}
-          strokeLinecap="round"
-        />
-        <path
-          d="M948 140a14 14 0 0 1 14 14"
-          stroke="#22C55E"
-          strokeOpacity="0.7"
-          strokeWidth={1.5}
-          strokeLinecap="round"
-        />
-        <circle cx="948" cy="154" r="5" fill="#22C55E" />
-        <circle
-          cx="948"
-          cy="154"
-          r="5"
-          fill="#22C55E"
-          fillOpacity="0.5"
-          className="animate-sentry-ping motion-reduce:animate-none"
-          style={{ transformOrigin: '948px 154px', transformBox: 'view-box' }}
-        />
-      </g>
     </svg>
   );
 }

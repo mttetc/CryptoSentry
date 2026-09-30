@@ -3,8 +3,8 @@ import { cn } from '@/lib/utils';
 
 /**
  * Brand mark: the signal before the candle.
- * A green ping on the left, its wave reaching a candlestick on the right. Monoline, inherits
- * the text color; only the signal is brand green so it reads in any context.
+ * A quiet candle, then the move: a full green candle. Two shapes, no ornament; the grey
+ * candle inherits the text color.
  */
 function LogoMark({ size = 22, className }: { size?: number; className?: string }) {
   return (
@@ -17,25 +17,27 @@ function LogoMark({ size = 22, className }: { size?: number; className?: string 
       aria-hidden="true"
       className={cn('shrink-0', className)}
     >
-      {/* Candle: wick, body, wick */}
-      <path d="M23 3.5V8M23 24v4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <rect x="19" y="8" width="8" height="16" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      {/* Signal: the ping and two waves travelling up to the candle */}
+      {/* Before: a small, quiet candle */}
       <path
-        d="M9 13.5a6.5 6.5 0 0 1 6.5 6.5"
+        d="M10 14.5V17M10 24v2.5"
         stroke="currentColor"
-        strokeOpacity="0.75"
+        strokeOpacity="0.5"
         strokeWidth="2"
         strokeLinecap="round"
       />
-      <path
-        d="M9 9.5a10.5 10.5 0 0 1 10.5 10.5"
+      <rect
+        x="7"
+        y="17"
+        width="6"
+        height="7"
+        rx="1.25"
         stroke="currentColor"
-        strokeOpacity="0.35"
+        strokeOpacity="0.5"
         strokeWidth="2"
-        strokeLinecap="round"
       />
-      <circle cx="9" cy="20" r="3" fill="#22C55E" />
+      {/* After: the move */}
+      <path d="M23 3.5V7.5M23 24.5v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <rect x="19" y="7.5" width="8" height="17" rx="1.5" fill="#22C55E" />
     </svg>
   );
 }

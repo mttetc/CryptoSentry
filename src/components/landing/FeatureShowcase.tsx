@@ -7,6 +7,7 @@ import {
   ApiArt,
   BoundaryArt,
   ChannelsArt,
+  ChartArt,
   PriceArt,
   SentimentArt,
   StreamArt,
@@ -63,13 +64,27 @@ export default function FeatureShowcase() {
   return (
     <section id="features" className="bg-ground-2 scroll-mt-20 border-y border-white/[0.08] py-24">
       <div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-12 lg:gap-8 lg:px-10">
-        <SectionHeading
-          eyebrow="What is in the box"
-          title="Built for people who trade the news, not the noise."
-          layout="stack"
-          standalone
-          className="lg:col-span-4"
-        />
+        <div className="flex flex-col gap-10 lg:sticky lg:top-28 lg:col-span-4 lg:self-start">
+          <SectionHeading
+            eyebrow="What is in the box"
+            title="Built for people who trade the news, not the noise."
+            layout="stack"
+            standalone
+          />
+          {/* The move the signal announced: the chart draws itself, the last candle goes green */}
+          <m.div
+            variants={fadeInUp}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.4 }}
+            className="hidden lg:block"
+          >
+            <ChartArt className="h-auto w-full" />
+            <p className="text-ink-muted mt-3 font-mono text-xs">
+              the tweet lands · the candle follows
+            </p>
+          </m.div>
+        </div>
 
         {/* Spec sheet: hairline rows, index + title left, description right */}
         <m.dl

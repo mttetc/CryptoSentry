@@ -171,69 +171,66 @@ interface Candle {
   low: number;
 }
 
-// Twelve candles on a quiet drift, the last one is the move the signal announced.
-// Y grows downwards: close < open means the candle went up.
-const CANDLES: Candle[] = [
-  { x: 60, open: 138, close: 130, high: 124, low: 142 },
-  { x: 150, open: 130, close: 136, high: 126, low: 141 },
-  { x: 240, open: 136, close: 124, high: 119, low: 139 },
-  { x: 330, open: 124, close: 129, high: 118, low: 134 },
-  { x: 420, open: 129, close: 116, high: 111, low: 132 },
-  { x: 510, open: 116, close: 121, high: 110, low: 126 },
-  { x: 600, open: 121, close: 112, high: 106, low: 124 },
-  { x: 690, open: 112, close: 118, high: 108, low: 122 },
-  { x: 780, open: 118, close: 108, high: 102, low: 121 },
-  { x: 870, open: 108, close: 112, high: 103, low: 116 },
-  { x: 960, open: 112, close: 106, high: 100, low: 115 },
-  { x: 1080, open: 106, close: 44, high: 36, low: 110 },
-];
+/**
+ * A close-to-close series: each candle opens where the previous one closed. Y grows downwards,
+ * hence close < open is an up candle. The last one is the move the signal announced.
+ */
+const CLOSES = [96, 116, 82, 108, 130, 90, 110, 66, 96, 56, 104, 74, 50, 12];
+const BODY_W = 30;
+const STEP = 34;
+const BASELINE = 218;
+const HERO_STEP_S = 0.32;
 
-const HERO_STEP_S = 0.45;
-const BODY_W = 14;
+const CANDLES: Candle[] = CLOSES.map((close, i) => {
+  const open = i === 0 ? 124 : CLOSES[i - 1];
+  const up = close < open;
+  return {
+    x: 18 + BODY_W / 2 + i * STEP,
+    open,
+    close,
+    high: Math.min(open, close) - (up ? 9 : 5),
+    low: Math.max(open, close) + (up ? 5 : 9),
+  };
+});
 
 /**
- * Full-width hero illustration: a candlestick chart draws itself candle by candle, then the
- * last one makes the move. Loops with a long hold.
- * Past candles share one muted tone: hollow when they closed up, filled when they closed down.
+ * Section illustration: candles form one after another, each growing from its open (the
+ * previous close) up or down to its close, then the last one makes the move. Green up, red
+ * down, candles touching like a chart. Loops with a long hold.
  */
-export function HeroChartArt({ className }: ArtProps) {
+export function ChartArt({ className }: ArtProps) {
   const last = CANDLES.length - 1;
   return (
     <svg
-      viewBox="0 0 1200 200"
-      preserveAspectRatio="xMidYMax slice"
+      viewBox="0 0 500 240"
+      preserveAspectRatio="xMidYMid meet"
       fill="none"
-      className={cn('text-ink-soft h-full w-full', className)}
+      className={cn('h-auto w-full', className)}
       aria-hidden="true"
     >
-      <path d="M0 176.5H1200" stroke="currentColor" strokeOpacity="0.16" />
+      <path d={`M0 ${BASELINE + 0.5}H500`} stroke="#EAF0EC" strokeOpacity="0.16" />
 
       {CANDLES.map((c, i) => {
         const isLast = i === last;
         const up = c.close < c.open;
+        const color = up ? '#22C55E' : '#F0645A';
         const top = Math.min(c.open, c.close);
         const height = Math.max(Math.abs(c.open - c.close), 2);
-        let bodyFill = 'currentColor';
-        if (isLast) {
-          bodyFill = '#22C55E';
-        } else if (up) {
-          bodyFill = 'none';
-        }
         return (
           <g
             key={c.x}
             className="animate-candle motion-reduce:animate-none"
             style={{
-              animationDelay: `${i * HERO_STEP_S + (isLast ? 1.4 : 0)}s`,
-              transformOrigin: `${c.x}px 176px`,
+              animationDelay: `${i * HERO_STEP_S + (isLast ? 1.2 : 0)}s`,
+              transformOrigin: `${c.x}px ${c.open}px`,
               transformBox: 'view-box',
             }}
           >
             <path
               d={`M${c.x} ${c.high}V${c.low}`}
-              stroke={isLast ? '#22C55E' : 'currentColor'}
-              strokeOpacity={isLast ? 0.9 : 0.45}
-              strokeWidth={1}
+              stroke={color}
+              strokeWidth={2}
+              strokeOpacity={isLast ? 1 : 0.8}
             />
             <rect
               x={c.x - BODY_W / 2}
@@ -241,11 +238,8 @@ export function HeroChartArt({ className }: ArtProps) {
               width={BODY_W}
               height={height}
               rx={1.5}
-              fill={bodyFill}
-              fillOpacity={isLast ? 0.9 : 0.35}
-              stroke={isLast ? '#22C55E' : 'currentColor'}
-              strokeOpacity={isLast ? 1 : 0.45}
-              strokeWidth={1}
+              fill={color}
+              fillOpacity={isLast ? 1 : 0.85}
             />
           </g>
         );

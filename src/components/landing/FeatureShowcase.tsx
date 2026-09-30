@@ -7,11 +7,11 @@ import {
   ApiArt,
   BoundaryArt,
   ChannelsArt,
-  ChartArt,
   PriceArt,
   SentimentArt,
   StreamArt,
 } from './illustrations';
+import { ChartArt } from './chart-art';
 import type { ComponentType } from 'react';
 
 const features: {

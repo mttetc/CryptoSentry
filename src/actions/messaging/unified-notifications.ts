@@ -5,7 +5,7 @@ import { sendEmailAlert } from '@/actions/messaging/providers/email';
 import { sendDiscordAlert } from '@/actions/messaging/providers/discord';
 import { sendSmsAlert } from '@/actions/messaging/providers/sms';
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
-import { getAllowedChannels } from '@/lib/config/plans';
+import { getAllowedChannels, checkSmsQuota } from '@/lib/config/plans';
 import type { AlertNotification, ChannelResult, NotificationResult } from '@/types/notifications';
 import type { Database } from '@/types/database';
 
@@ -166,16 +166,32 @@ export async function sendUnifiedAlert(
 
     // Separate Telegram channels (handled via user_telegram_settings) from others
     const telegramChannels = channels.filter((c) => c.channel_type === 'telegram');
-    const otherChannels = channels.filter((c) => c.channel_type !== 'telegram');
+    let otherChannels = channels.filter((c) => c.channel_type !== 'telegram');
+
+    // SMS costs real money per message: past the plan quota, Telegram takes over.
+    let smsBlocked: string | null = null;
+    if (otherChannels.some((c) => c.channel_type === 'sms')) {
+      const quota = await checkSmsQuota(notification.userId);
+      if (!quota.allowed) {
+        smsBlocked = `SMS quota reached (${quota.used}/${quota.limit}), delivered on Telegram instead`;
+        otherChannels = otherChannels.filter((c) => c.channel_type !== 'sms');
+      }
+    }
 
     // Build dispatch promises for all channels
     const dispatches: { key: string; promise: Promise<ChannelResult> }[] = [];
 
-    // Telegram: only dispatch once even if multiple rows exist
-    if (telegramChannels.length > 0) {
+    // Telegram: only dispatch once even if multiple rows exist (or as the SMS fallback)
+    if (telegramChannels.length > 0 || smsBlocked !== null) {
       dispatches.push({
         key: 'telegram',
         promise: dispatchTelegram(notification),
+      });
+    }
+    if (smsBlocked !== null) {
+      dispatches.push({
+        key: 'sms',
+        promise: Promise.resolve({ success: false, error: smsBlocked }),
       });
     }
 

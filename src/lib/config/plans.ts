@@ -1,5 +1,5 @@
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
-import { normalizeAccount } from '@/lib/services/twitter/matching';
+import { normalizeAccount, utcMonthKey } from '@/lib/services/twitter/matching';
 import {
   PLANS,
   getPlanLimits,
@@ -62,17 +62,40 @@ function startOfUtcMonth(now = new Date()): string {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 }
 
-/** Matched tweets delivered for this user this UTC month (one alert_triggers row per alert × tweet). */
+/** Posts the X stream delivered for this user's watched accounts this UTC month (what X bills). */
 export async function getUserMonthlyTweetCount(userId: string): Promise<number> {
   const supabase = createServiceSupabaseClient();
+  const { data } = await supabase
+    .from('user_stream_usage')
+    .select('delivered')
+    .eq('month', utcMonthKey())
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  return data?.delivered ?? 0;
+}
+
+/** Successful SMS deliveries this UTC month. */
+export async function getUserMonthlySmsCount(userId: string): Promise<number> {
+  const supabase = createServiceSupabaseClient();
   const { count } = await supabase
-    .from('alert_triggers')
+    .from('alert_delivery_logs')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .eq('type', 'social')
-    .gte('triggered_at', startOfUtcMonth());
+    .eq('channel', 'sms')
+    .eq('data->>channel_success', 'true')
+    .gte('created_at', startOfUtcMonth());
 
   return count ?? 0;
+}
+
+/** SMS cost real money per message; the plan caps them and Telegram takes over past the cap. */
+export async function checkSmsQuota(
+  userId: string
+): Promise<{ allowed: boolean; used: number; limit: number }> {
+  const [plan, used] = await Promise.all([getUserPlan(userId), getUserMonthlySmsCount(userId)]);
+  const limit = getPlanLimits(plan).monthlySmsQuota;
+  return { allowed: used < limit, used, limit };
 }
 
 // --- Limit checks ---
@@ -182,10 +205,9 @@ export async function getAllowedChannels(userId: string): Promise<ChannelType[]>
 }
 
 /**
- * Users whose monthly matched-tweet quota is exhausted. Their alerts are excluded from the X
+ * Users whose monthly delivered-post quota is exhausted. Their alerts are excluded from the X
  * rules and from matching until the next UTC month so we stop paying for posts we will not
- * deliver. One exact count query per user: PostgREST would silently truncate a row scan at
- * its 1000-row default and make Premium quotas unreachable.
+ * deliver. Usage comes from user_stream_usage, incremented per delivered post by the pipeline.
  */
 export async function getUsersOverTweetQuota(userIds: string[]): Promise<Set<string>> {
   const unique = [...new Set(userIds)];
@@ -194,38 +216,27 @@ export async function getUsersOverTweetQuota(userIds: string[]): Promise<Set<str
   }
 
   const supabase = createServiceSupabaseClient();
-  const since = startOfUtcMonth();
+  const [plansResult, usageResult] = await Promise.all([
+    supabase.from('user_plans').select('user_id, plan').in('user_id', unique),
+    supabase
+      .from('user_stream_usage')
+      .select('user_id, delivered')
+      .eq('month', utcMonthKey())
+      .in('user_id', unique),
+  ]);
 
-  const { data: planRows } = await supabase
-    .from('user_plans')
-    .select('user_id, plan')
-    .in('user_id', unique);
-  const planByUser = new Map((planRows ?? []).map((row) => [row.user_id, toPlanId(row.plan)]));
+  const planByUser = new Map(
+    (plansResult.data ?? []).map((row) => [row.user_id, toPlanId(row.plan)])
+  );
+  const usageByUser = new Map((usageResult.data ?? []).map((row) => [row.user_id, row.delivered]));
 
   const over = new Set<string>();
-  const CONCURRENCY = 10;
-
-  for (let i = 0; i < unique.length; i += CONCURRENCY) {
-    const batch = unique.slice(i, i + CONCURRENCY);
-    const counts = await Promise.all(
-      batch.map((userId) =>
-        supabase
-          .from('alert_triggers')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .eq('type', 'social')
-          .gte('triggered_at', since)
-      )
-    );
-
-    batch.forEach((userId, index) => {
-      const limits = getPlanLimits(planByUser.get(userId) ?? 'free');
-      if ((counts[index].count ?? 0) >= limits.monthlyTweetQuota) {
-        over.add(userId);
-      }
-    });
+  for (const userId of unique) {
+    const limits = getPlanLimits(planByUser.get(userId) ?? 'free');
+    if ((usageByUser.get(userId) ?? 0) >= limits.monthlyTweetQuota) {
+      over.add(userId);
+    }
   }
-
   return over;
 }
 

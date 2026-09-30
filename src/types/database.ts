@@ -581,6 +581,35 @@ export type Database = {
         };
         Relationships: [];
       };
+      user_stream_usage: {
+        Row: {
+          delivered: number;
+          month: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          delivered?: number;
+          month: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          delivered?: number;
+          month?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'user_stream_usage_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'user';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       x_stream_usage: {
         Row: {
           delivered: number;
@@ -604,6 +633,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      increment_user_stream_usage: {
+        Args: { p_month: string; p_rows: Json };
+        Returns: undefined;
+      };
       increment_x_stream_usage: {
         Args: { p_month: string; p_count: number };
         Returns: number;

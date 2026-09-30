@@ -24,6 +24,8 @@ export interface PlanLimits {
   monthlyTweetQuota: number;
   /** Whether replies and quote tweets may be included (much higher volume). */
   allowReplies: boolean;
+  /** Successful SMS deliveries per UTC month (each costs real money); beyond it, Telegram takes over. */
+  monthlySmsQuota: number;
   channels: ChannelType[];
   hasApi: boolean;
 }
@@ -37,6 +39,7 @@ export const PLANS: Record<PlanId, PlanLimits> = {
     maxKeywordsPerAlert: 3,
     monthlyTweetQuota: 40,
     allowReplies: false,
+    monthlySmsQuota: 0,
     channels: ['telegram'],
     hasApi: false,
   },
@@ -48,17 +51,19 @@ export const PLANS: Record<PlanId, PlanLimits> = {
     maxKeywordsPerAlert: 10,
     monthlyTweetQuota: 500,
     allowReplies: false,
+    monthlySmsQuota: 30,
     channels: ['telegram', 'email', 'discord', 'sms'],
     hasApi: false,
   },
   premium: {
     label: 'Premium',
-    priceEur: 29,
+    priceEur: 39,
     maxAlerts: 50,
     maxWatchedAccounts: 25,
     maxKeywordsPerAlert: 20,
     monthlyTweetQuota: 3000,
     allowReplies: true,
+    monthlySmsQuota: 150,
     channels: ['telegram', 'email', 'discord', 'sms'],
     hasApi: true,
   },
@@ -80,6 +85,9 @@ export function describePlan(plan: PlanId): string[] {
     `${limits.monthlyTweetQuota.toLocaleString('en-US')} matched tweets / month`,
     limits.channels.length === 1 ? 'Telegram notifications' : 'All notification channels',
   ];
+  if (limits.monthlySmsQuota > 0) {
+    features.push(`${limits.monthlySmsQuota} SMS / month`);
+  }
   if (limits.allowReplies) {
     features.push('Replies & quotes included');
   }

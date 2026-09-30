@@ -5,7 +5,7 @@ import type {
   PipelineDeps,
   AnalyzedMatch,
 } from './types';
-import { findMatches, normalizeAccount, type Match } from './matching';
+import { findMatches, normalizeAccount, utcMonthKey, type Match } from './matching';
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
 import { sendUnifiedAlert } from '@/actions/messaging/unified-notifications';
 import { analyzeTweet } from '@/lib/services/ai';
@@ -74,6 +74,45 @@ async function claimTweets(tweets: TweetData[]): Promise<TweetData[]> {
 
   const claimed = new Set((data ?? []).map((row) => row.tweet_id));
   return tweets.filter((t) => claimed.has(t.id));
+}
+
+/**
+ * Attribute each delivered post to every user watching its author. This is what X bills us for
+ * (one post, however many alerts match), so it is what the plan quota counts.
+ */
+export async function recordDeliveredUsage(
+  tweets: TweetData[],
+  alerts: SocialAlertRow[]
+): Promise<void> {
+  const usersByAccount = new Map<string, Set<string>>();
+  for (const alert of alerts) {
+    if (alert.is_active === false || alert.platform !== 'twitter') {
+      continue;
+    }
+    const key = normalizeAccount(alert.account);
+    const users = usersByAccount.get(key) ?? new Set<string>();
+    users.add(alert.user_id);
+    usersByAccount.set(key, users);
+  }
+
+  const counts = new Map<string, number>();
+  for (const tweet of tweets) {
+    for (const userId of usersByAccount.get(normalizeAccount(tweet.author.userName)) ?? []) {
+      counts.set(userId, (counts.get(userId) ?? 0) + 1);
+    }
+  }
+  if (counts.size === 0) {
+    return;
+  }
+
+  const supabase = createServiceSupabaseClient();
+  const { error } = await supabase.rpc('increment_user_stream_usage', {
+    p_month: utcMonthKey(),
+    p_rows: [...counts].map(([user_id, delivered]) => ({ user_id, delivered })),
+  });
+  if (error) {
+    console.error('[Pipeline] Failed to record delivered usage:', error);
+  }
 }
 
 export async function pruneProcessedTweets(): Promise<void> {
@@ -230,6 +269,14 @@ export async function processTweets(
   }
 
   const alerts = deps ? deps.alerts : await fetchActiveAlerts();
+
+  if (!deps?.skipPersistence) {
+    // Every claimed post was billed by X: count it for each user watching the author.
+    recordDeliveredUsage(fresh, alerts).catch((error) => {
+      console.error('[Pipeline] Usage accounting failed:', error);
+    });
+  }
+
   const matches = findMatches(alerts, fresh);
 
   if (matches.length === 0) {

@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server, waitFor, SUPABASE_REST } from './setup';
 import { clearDedupCache, processTweets } from '@/lib/services/twitter/pipeline';
 import type { SocialAlertRow, TweetData } from '@/lib/services/twitter/types';
 
@@ -82,5 +84,52 @@ describe('processTweets (injected deps, no DB)', () => {
       skipPersistence: true,
     });
     expect(result.matched).toBe(0);
+  });
+});
+
+describe('processTweets (persisted): usage accounting', () => {
+  beforeEach(() => {
+    clearDedupCache();
+  });
+
+  it('claims tweets once and bills each delivered post to every user watching the author', async () => {
+    const rpcCalls: { p_month: string; p_rows: { user_id: string; delivered: number }[] }[] = [];
+    server.use(
+      http.post(`${SUPABASE_REST}/processed_tweets`, async ({ request }) => {
+        const rows = (await request.json()) as { tweet_id: string }[];
+        return HttpResponse.json(
+          rows.map((r) => ({ tweet_id: r.tweet_id })),
+          { status: 201 }
+        );
+      }),
+      http.post(`${SUPABASE_REST}/rpc/increment_user_stream_usage`, async ({ request }) => {
+        rpcCalls.push((await request.json()) as (typeof rpcCalls)[number]);
+        return HttpResponse.json(null, { status: 204 });
+      })
+    );
+
+    const alerts: SocialAlertRow[] = [
+      alert,
+      { ...alert, id: 'alert-2', user_id: 'user-2', keywords: ['nothing-matches'] },
+      { ...alert, id: 'alert-3', user_id: 'user-3', account: 'vitalik', keywords: ['eth'] },
+    ];
+    const onTrigger = vi.fn<Trigger>(noopTrigger);
+
+    const result = await processTweets(
+      [tweet('1', 'btc up'), tweet('2', 'quiet day'), tweet('3', 'eth merge', 'vitalik')],
+      { alerts, onTrigger }
+    );
+
+    await waitFor(() => rpcCalls.length === 1);
+    const rows = rpcCalls[0].p_rows.toSorted((a, b) => a.user_id.localeCompare(b.user_id));
+
+    // Both user-1 and user-2 watch @satoshi: 2 delivered posts each, keyword match or not.
+    expect(rows).toEqual([
+      { user_id: 'user-1', delivered: 2 },
+      { user_id: 'user-2', delivered: 2 },
+      { user_id: 'user-3', delivered: 1 },
+    ]);
+    expect(rpcCalls[0].p_month).toMatch(/^\d{4}-\d{2}$/);
+    expect(result.triggered).toBe(2);
   });
 });

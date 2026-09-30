@@ -33,6 +33,10 @@ const ROWS: Row[] = [
     accent: (p) => p.allowReplies,
   },
   { label: 'Channels', value: (p) => (p.channels.length === 1 ? 'Telegram' : 'all four') },
+  {
+    label: 'SMS per month',
+    value: (p) => (p.monthlySmsQuota === 0 ? 'no' : String(p.monthlySmsQuota)),
+  },
   { label: 'REST API', value: (p) => (p.hasApi ? 'included' : 'no'), accent: (p) => p.hasApi },
 ];
 

@@ -21,8 +21,10 @@ on Binance, and get notified on Telegram, Discord, email or SMS.
 3. The pipeline claims the tweet id in `processed_tweets` (survives restarts, no double notify),
    matches per alert with word-boundary keyword matching, runs optional AI sentiment, notifies.
 4. Cost locks: plan limits (`src/lib/config/plan-limits.ts`) cap watched accounts, keywords per
-   alert, replies opt-in and monthly matched tweets per user; `X_STREAM_MONTHLY_POST_CAP` is a
-   global kill switch; `X_STREAM_MAX_RULES` stays under the 1000-rule pay-per-use limit.
+   alert, replies opt-in, monthly delivered posts per user (counted per delivered post in
+   `user_stream_usage`, which is what X bills) and monthly SMS (Telegram takes over past the
+   quota); `X_STREAM_MONTHLY_POST_CAP` is a global kill switch, size it to the sum of paying
+   quotas; `X_STREAM_MAX_RULES` stays under the 1000-rule pay-per-use limit.
 
 Price alerts are evaluated by a single server worker (`src/lib/services/price/price-alert-worker.ts`)
 fed by one Binance WebSocket; dashboards subscribe to it over SSE (`/api/alerts/stream`).
@@ -60,14 +62,17 @@ In development, `POST /api/ingest/tweets` lets you push fake tweets through the 
 
 ## Plans
 
-|                         | Free     | Pro | Premium |
-| ----------------------- | -------- | --- | ------- |
-| Alerts (social + price) | 2        | 10  | 50      |
-| X accounts watched      | 1        | 5   | 25      |
-| Keywords per alert      | 3        | 10  | 20      |
-| Matched tweets / month  | 40       | 500 | 3000    |
-| Replies and quotes      | no       | no  | yes     |
-| Channels                | Telegram | all | all     |
-| REST API                | no       | no  | yes     |
+| | Free | Pro | Premium |
+
+| Price                   | 0 €      | 9 € | 39 € |
+| ----------------------- | -------- | --- | ---- |
+| Alerts (social + price) | 2        | 10  | 50   |
+| X accounts watched      | 1        | 5   | 25   |
+| Keywords per alert      | 3        | 10  | 20   |
+| Matched tweets / month  | 40       | 500 | 3000 |
+| SMS / month             | 0        | 30  | 150  |
+| Replies and quotes      | no       | no  | yes  |
+| Channels                | Telegram | all | all  |
+| REST API                | no       | no  | yes  |
 
 Limits live in `src/lib/config/plan-limits.ts` and are enforced server-side.

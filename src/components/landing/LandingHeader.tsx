@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import NextLink from 'next/link';
 import { motion, useMotionValueEvent, useScroll } from 'motion/react';
-import { LogoMark } from '@/components/ui/logo';
+import { Logo } from '@/components/ui/logo';
 import { useUser } from '@/hooks/use-user';
 import { Button } from '@/components/ui/button';
 
@@ -34,12 +34,7 @@ export default function LandingHeader() {
       }
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6 lg:px-10">
-        <NextLink href="/" className="flex items-center gap-2.5">
-          <LogoMark size={22} />
-          <span className="font-display text-[17px] font-semibold tracking-tight">
-            CryptoSentry
-          </span>
-        </NextLink>
+        <Logo href="/" />
 
         <nav className="text-ink-muted hidden items-center gap-8 text-sm md:flex">
           {NAV.map((item) => (

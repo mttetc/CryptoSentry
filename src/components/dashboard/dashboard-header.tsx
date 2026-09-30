@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LogoMark } from '@/components/ui/logo';
+import { Logo } from '@/components/ui/logo';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -33,12 +33,7 @@ export function DashboardHeader({ userEmail }: DashboardHeaderProps) {
   return (
     <header className="bg-background/85 fixed top-0 right-0 left-0 z-50 border-b border-white/[0.08] backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6 lg:px-10">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
-          <LogoMark size={22} />
-          <span className="font-display text-[17px] font-semibold tracking-tight">
-            CryptoSentry
-          </span>
-        </Link>
+        <Logo href="/dashboard" />
 
         <div className="flex items-center gap-2">
           {userEmail && (

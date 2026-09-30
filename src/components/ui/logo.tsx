@@ -1,11 +1,12 @@
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
-interface LogoProps {
-  className?: string;
-  size?: number;
-}
-
-function LogoMark({ size = 20 }: { size?: number }) {
+/**
+ * Brand mark: the signal before the candle.
+ * A green ping on the left, its wave reaching a candlestick on the right. Monoline, inherits
+ * the text color; only the signal is brand green so it reads in any context.
+ */
+function LogoMark({ size = 22, className }: { size?: number; className?: string }) {
   return (
     <svg
       width={size}
@@ -13,46 +14,61 @@ function LogoMark({ size = 20 }: { size?: number }) {
       viewBox="0 0 32 32"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      className={cn('shrink-0', className)}
     >
+      {/* Candle: wick, body, wick */}
+      <path d="M22 4.5v4.5M22 23v4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <rect x="18" y="9" width="8" height="14" rx="1.5" stroke="currentColor" strokeWidth="2" />
+      {/* Signal: ping and its wave, ahead of the candle */}
       <path
-        d="M16 3L5 8.5V15C5 21.5 9.8 27.2 16 29C22.2 27.2 27 21.5 27 15V8.5L16 3Z"
-        fill="#22C55E"
-        fillOpacity="0.15"
-        stroke="#22C55E"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <circle cx="16" cy="15" r="2.5" fill="#22C55E" />
-      <path
-        d="M12.5 11.5C13.4 10.6 14.6 10 16 10C17.4 10 18.6 10.6 19.5 11.5"
-        stroke="#22C55E"
-        strokeWidth="1.5"
+        d="M8 3a7 7 0 0 1 7 7"
+        stroke="currentColor"
+        strokeOpacity="0.55"
+        strokeWidth="2"
         strokeLinecap="round"
       />
-      <path
-        d="M10 9C11.6 7.4 13.7 6.5 16 6.5C18.3 6.5 20.4 7.4 22 9"
-        stroke="#22C55E"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <path
-        d="M10 20H13L14.5 17L16 22L17.5 19L19 20H22"
-        stroke="#22C55E"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <circle cx="8" cy="10" r="3" fill="#22C55E" />
     </svg>
   );
 }
 
-export { LogoMark };
-
-export function Logo({ className = '', size = 20 }: LogoProps) {
+/** Wordmark: display face, two weights, a single green pixel as the full stop. */
+function Wordmark({ className }: { className?: string }) {
   return (
-    <Link href="/" className={`flex items-center gap-2 ${className}`}>
+    <span
+      className={cn(
+        'font-display inline-flex items-baseline text-[17px] leading-none tracking-[-0.02em]',
+        className
+      )}
+    >
+      <span className="font-medium">Crypto</span>
+      <span className="font-bold">Sentry</span>
+      <span
+        aria-hidden
+        className="bg-primary ml-[3px] inline-block h-[5px] w-[5px] rounded-[1px]"
+      />
+    </span>
+  );
+}
+
+interface LogoProps {
+  href?: string;
+  size?: number;
+  className?: string;
+}
+
+function Logo({ href = '/', size = 22, className }: LogoProps) {
+  return (
+    <Link
+      href={href}
+      aria-label="CryptoSentry"
+      className={cn('text-foreground inline-flex items-center gap-2.5', className)}
+    >
       <LogoMark size={size} />
-      <span className="text-sm font-semibold tracking-tight text-white">CryptoSentry</span>
+      <Wordmark />
     </Link>
   );
 }
+
+export { Logo, LogoMark, Wordmark };

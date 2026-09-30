@@ -16,8 +16,8 @@ import { FEATURES } from '@/lib/config/features';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'CryptoSentry - Crypto Alert App',
-  description: 'A powerful alert system for cryptocurrency trading',
+  title: 'CryptoSentry',
+  description: 'Real-time alerts from the X accounts you watch, on Telegram in seconds.',
   icons: {
     icon: [
       {

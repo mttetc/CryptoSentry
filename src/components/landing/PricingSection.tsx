@@ -125,7 +125,7 @@ export default function PricingSection() {
             <TableHeader>
               <TableRow className="border-white/[0.1] align-bottom hover:bg-transparent">
                 <TableHead className="w-[28%] pb-6" />
-                {/* table-fixed: the three plan columns share the remaining width equally */}
+                {/* With table-layout fixed, the three plan columns share the remaining width equally */}
                 {PLAN_ORDER.map((planId) => {
                   const plan = PLANS[planId];
                   const highlighted = planId === HIGHLIGHTED;

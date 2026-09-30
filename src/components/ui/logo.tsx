@@ -18,17 +18,24 @@ function LogoMark({ size = 22, className }: { size?: number; className?: string 
       className={cn('shrink-0', className)}
     >
       {/* Candle: wick, body, wick */}
-      <path d="M22 4.5v4.5M22 23v4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <rect x="18" y="9" width="8" height="14" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      {/* Signal: ping and its wave, ahead of the candle */}
+      <path d="M23 3.5V8M23 24v4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <rect x="19" y="8" width="8" height="16" rx="1.5" stroke="currentColor" strokeWidth="2" />
+      {/* Signal: the ping and two waves travelling up to the candle */}
       <path
-        d="M8 3a7 7 0 0 1 7 7"
+        d="M9 13.5a6.5 6.5 0 0 1 6.5 6.5"
         stroke="currentColor"
-        strokeOpacity="0.55"
+        strokeOpacity="0.75"
         strokeWidth="2"
         strokeLinecap="round"
       />
-      <circle cx="8" cy="10" r="3" fill="#22C55E" />
+      <path
+        d="M9 9.5a10.5 10.5 0 0 1 10.5 10.5"
+        stroke="currentColor"
+        strokeOpacity="0.35"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <circle cx="9" cy="20" r="3" fill="#22C55E" />
     </svg>
   );
 }

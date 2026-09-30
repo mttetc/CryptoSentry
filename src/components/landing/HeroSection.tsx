@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import { fadeInUp, revealUp, staggerContainer, hoverLift } from './animations';
 import HeroFeed from './HeroFeed';
+import { HeroChartArt } from './illustrations';
 import { Button } from '@/components/ui/button';
 
 function Dot() {
@@ -13,7 +14,14 @@ function Dot() {
 
 export default function HeroSection() {
   return (
-    <section className="relative pt-36 pb-20 md:pt-44 md:pb-24">
+    <section className="relative overflow-hidden pt-32 pb-24 md:pt-36 md:pb-28">
+      {/* Animated chart along the bottom of the first screen */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-[240px] [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)] opacity-60 md:block"
+      >
+        <HeroChartArt />
+      </div>
       <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-16 px-6 lg:grid-cols-12 lg:gap-8 lg:px-10">
         <motion.div
           variants={staggerContainer}

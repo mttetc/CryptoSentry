@@ -2,17 +2,17 @@ import NextLink from 'next/link';
 
 export default function LandingFooter() {
   return (
-    <footer className="border-t px-6 py-8">
-      <div className="text-muted-foreground mx-auto flex max-w-5xl flex-col items-center gap-4 text-xs">
+    <footer className="relative border-t border-white/[0.08]">
+      <div className="text-ink-muted mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 py-6 text-[13px] sm:flex-row lg:px-10">
+        <span>&copy; {new Date().getFullYear()} CryptoSentry</span>
         <div className="flex gap-6">
-          <NextLink href="/privacy" className="hover:text-foreground">
-            Privacy Policy
+          <NextLink href="/privacy" className="hover:text-foreground transition-colors">
+            Privacy
           </NextLink>
-          <NextLink href="/terms" className="hover:text-foreground">
-            Terms of Service
+          <NextLink href="/terms" className="hover:text-foreground transition-colors">
+            Terms
           </NextLink>
         </div>
-        <div>&copy; {new Date().getFullYear()} CryptoSentry</div>
       </div>
     </footer>
   );

@@ -2,6 +2,15 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
+import { Bricolage_Grotesque } from 'next/font/google';
+
+// eslint-disable-next-line new-cap -- next/font exports are PascalCase factories
+const display = Bricolage_Grotesque({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-display',
+  display: 'swap',
+});
 import { Toaster } from 'sonner';
 import { FEATURES } from '@/lib/config/features';
 import { Providers } from './providers';
@@ -23,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
-        className={`${GeistSans.variable} ${GeistMono.variable} bg-background font-sans antialiased`}
+        className={`${GeistSans.variable} ${GeistMono.variable} ${display.variable} bg-background font-sans antialiased`}
         suppressHydrationWarning
       >
         <Providers>

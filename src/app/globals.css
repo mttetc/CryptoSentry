@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 @theme {
   --color-background: hsl(var(--background));
@@ -26,7 +26,15 @@
   --color-chart-3: hsl(var(--chart-3));
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
-  --color-sentry-green: #22C55E;
+  --color-sentry-green: #22c55e;
+  --color-surface: #121918;
+  --color-surface-2: #172020;
+  --color-ground-2: #0e1412;
+  --color-line: rgba(234, 240, 236, 0.1);
+  --color-ink: #eaf0ec;
+  --color-ink-soft: #c8d1cc;
+  --color-ink-muted: #93a39b;
+  --color-amber: #e8b04b;
 
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
   --font-display: var(--font-display), var(--font-geist-sans), system-ui, sans-serif;
@@ -56,12 +64,20 @@
   }
 
   @keyframes accordion-down {
-    from { height: 0; }
-    to { height: var(--radix-accordion-content-height); }
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
   }
   @keyframes accordion-up {
-    from { height: var(--radix-accordion-content-height); }
-    to { height: 0; }
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
   }
 }
 
@@ -94,24 +110,24 @@
 }
 
 .dark {
-  --background: 0 0% 5%;
-  --foreground: 0 0% 100%;
-  --card: 0 0% 8%;
-  --card-foreground: 0 0% 100%;
-  --popover: 0 0% 8%;
-  --popover-foreground: 0 0% 100%;
+  --background: 165 15% 5%;
+  --foreground: 140 12% 93%;
+  --card: 165 14% 8%;
+  --card-foreground: 140 12% 93%;
+  --popover: 165 14% 8%;
+  --popover-foreground: 140 12% 93%;
   --primary: 142 71% 45%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 12%;
-  --secondary-foreground: 0 0% 100%;
-  --muted: 0 0% 15%;
-  --muted-foreground: 0 0% 64%;
-  --accent: 0 0% 15%;
-  --accent-foreground: 0 0% 100%;
+  --secondary: 165 12% 11%;
+  --secondary-foreground: 140 12% 93%;
+  --muted: 160 10% 14%;
+  --muted-foreground: 150 8% 61%;
+  --accent: 160 10% 14%;
+  --accent-foreground: 140 12% 93%;
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 0 0% 100%;
-  --border: 0 0% 15%;
-  --input: 0 0% 15%;
+  --border: 150 17% 16%;
+  --input: 150 17% 16%;
   --ring: 142 71% 45%;
   --chart-1: 142 71% 45%;
   --chart-2: 160 60% 45%;

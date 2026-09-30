@@ -2,35 +2,31 @@
 
 import { m } from 'motion/react';
 import { fadeInUp } from './animations';
-import { Separator } from '@/components/ui/separator';
 
-const stats = [
-  { label: 'to start', value: 'Free' },
-  { label: 'tweet to alert', value: 'seconds' },
-  { label: 'to set up', value: '1 min' },
+const facts = [
+  'Official X API, no scraping',
+  'Push delivery, seconds after the post',
+  'Telegram, Discord, email, SMS',
+  'Binance prices over WebSocket',
 ];
 
 export default function StatsBar() {
   return (
-    <div>
-      <Separator />
-      <m.section
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, amount: 0.5 }}
-        variants={fadeInUp}
-        className="py-8"
-      >
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-8 px-6 text-center md:gap-16">
-          {stats.map((stat) => (
-            <div key={stat.label} className="flex items-center gap-3">
-              <span className="font-mono text-lg font-semibold">{stat.value}</span>
-              <span className="text-muted-foreground text-sm">{stat.label}</span>
-            </div>
-          ))}
-        </div>
-      </m.section>
-      <Separator />
-    </div>
+    <m.section
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.5 }}
+      variants={fadeInUp}
+      className="bg-ground-2/60 border-y border-white/[0.08]"
+    >
+      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 px-6 py-6 sm:grid-cols-2 lg:grid-cols-4 lg:px-10">
+        {facts.map((fact, i) => (
+          <div key={fact} className="text-ink-soft flex items-center gap-3 text-sm">
+            <span className="text-primary font-mono">{String(i + 1).padStart(2, '0')}</span>
+            {fact}
+          </div>
+        ))}
+      </div>
+    </m.section>
   );
 }

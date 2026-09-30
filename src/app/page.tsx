@@ -7,19 +7,21 @@ import FeatureShowcase from '@/components/landing/FeatureShowcase';
 import PricingSection from '@/components/landing/PricingSection';
 import BottomCTA from '@/components/landing/BottomCTA';
 import LandingFooter from '@/components/landing/LandingFooter';
+import { Backdrop } from '@/components/landing/Backdrop';
 import { LazyMotionProvider } from '@/components/landing/lazy-motion-provider';
 
 export const metadata: Metadata = {
-  title: 'CryptoSentry - Stop refreshing Twitter',
+  title: 'CryptoSentry - Get the tweet before the candle',
   description:
-    'CryptoSentry watches crypto influencers 24/7 and pings your Telegram the second they mention a token.',
+    'CryptoSentry streams every matching post from the X accounts you watch to your Telegram in seconds, with an AI read on the sentiment.',
 };
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen text-white">
+    <div className="text-foreground relative min-h-screen">
+      <Backdrop />
       <LandingHeader />
-      <main>
+      <main className="relative">
         <HeroSection />
         <LazyMotionProvider>
           <StatsBar />

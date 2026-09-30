@@ -56,6 +56,7 @@
   --animate-fan: fan 1.6s ease-in-out infinite;
   --animate-blink: blink 1.1s steps(2, start) infinite;
   --animate-candle: candle 12s ease-out infinite;
+  --animate-brand-dot: brand-dot 7s ease-in-out infinite;
 
   @keyframes stream {
     to {
@@ -130,6 +131,18 @@
     100% {
       transform: scaleY(1);
       opacity: 0;
+    }
+  }
+  @keyframes brand-dot {
+    0%,
+    100% {
+      background-color: #22c55e;
+    }
+    35% {
+      background-color: #34d399;
+    }
+    70% {
+      background-color: #a3e635;
     }
   }
   @keyframes blink {

@@ -16,25 +16,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ActiveConversations } from './active-conversations';
 import { LiveFeed } from './live-feed';
 import { PriceAlertsList } from './price-alerts-list';
-import { WalletAlertsList } from './wallet-alerts-list';
 import { CreateAlertDialog } from './create-alert-dialog';
 import { CreatePriceAlertDialog } from './create-price-alert-dialog';
-import { CreateWalletAlertDialog } from './create-wallet-alert-dialog';
 import { useAlertStream, type TriggerEvent } from '@/hooks/use-alert-stream';
 import { useNewMatchAlertIds } from '@/hooks/use-new-matches';
 import { useNotificationSound } from '@/hooks/use-notification-sound';
-import type {
-  SocialAlertWithStats,
-  PriceAlertWithStats,
-  WalletAlertWithStats,
-} from '@/types/alerts';
+import type { SocialAlertWithStats, PriceAlertWithStats } from '@/types/alerts';
+import { PLANS } from '@/lib/config/plan-limits';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' as const } },
 };
-
-const ALERTS_PER_TYPE = 2;
 
 interface PlanInfo {
   plan: string;
@@ -46,7 +39,6 @@ interface ModernDashboardProps {
   userId: string;
   initialAlerts?: SocialAlertWithStats[];
   initialPriceAlerts?: PriceAlertWithStats[];
-  initialWalletAlerts?: WalletAlertWithStats[];
   planInfo?: PlanInfo;
 }
 
@@ -72,17 +64,13 @@ export function ModernDashboard({
   userId,
   initialAlerts,
   initialPriceAlerts,
-  initialWalletAlerts,
   planInfo,
 }: ModernDashboardProps) {
-  const TABS = ['social', 'price', 'whale', 'advanced'] as const;
+  const TABS = ['social', 'price'] as const;
   const [tab, setTab] = useQueryState('tab', parseAsStringLiteral(TABS).withDefault('social'));
 
   const [alerts, setAlerts] = useState<SocialAlertWithStats[]>(initialAlerts ?? []);
   const [priceAlerts, setPriceAlerts] = useState<PriceAlertWithStats[]>(initialPriceAlerts ?? []);
-  const [walletAlerts, setWalletAlerts] = useState<WalletAlertWithStats[]>(
-    initialWalletAlerts ?? []
-  );
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
   const [recentTriggers, setRecentTriggers] = useState<TriggerEvent[]>([]);
@@ -93,9 +81,9 @@ export function ModernDashboard({
   // Dialog open states (lifted from dialog components)
   const [createAlertOpen, setCreateAlertOpen] = useState(false);
   const [createPriceAlertOpen, setCreatePriceAlertOpen] = useState(false);
-  const [createWalletAlertOpen, setCreateWalletAlertOpen] = useState(false);
 
-  const plan = planInfo?.plan ?? 'Free';
+  const plan = planInfo?.plan ?? PLANS.free.label;
+  const alertLimit = planInfo?.limit ?? PLANS.free.maxAlerts;
 
   // SSE connection
   useAlertStream({
@@ -110,10 +98,6 @@ export function ModernDashboard({
       setRecentTriggers((prev) => [data, ...prev].slice(0, 20));
       playAlertSound();
       refreshPriceAlerts();
-    },
-    onWhaleTriggered: (data) => {
-      setRecentTriggers((prev) => [data, ...prev].slice(0, 20));
-      playAlertSound();
     },
   });
 
@@ -147,20 +131,7 @@ export function ModernDashboard({
     }
   };
 
-  const refreshWalletAlerts = async () => {
-    try {
-      const response = await fetch('/api/alerts/wallet');
-      if (!response.ok) {
-        return;
-      }
-      const data = await response.json();
-      setWalletAlerts(data.alerts || []);
-    } catch {
-      // Silent
-    }
-  };
-
-  // Social polling only — price/whale handled by SSE/WebSocket
+  // Social polling only — price handled by SSE
   const hasActiveAlerts = alerts.some((a) => a.is_active);
 
   useEffect(() => {
@@ -230,22 +201,13 @@ export function ModernDashboard({
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="whale">
-              Whale
-              {walletAlerts.length > 0 && (
-                <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
-                  {walletAlerts.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="advanced">Advanced</TabsTrigger>
           </TabsList>
 
           <TabsContent value="social">
             <div className="mb-3 flex items-center justify-between gap-2">
               <UsageInfo
                 count={alerts.length}
-                limit={ALERTS_PER_TYPE}
+                limit={alertLimit}
                 label="Social alerts"
                 plan={plan}
               />
@@ -301,7 +263,7 @@ export function ModernDashboard({
             <div className="mb-3 flex items-center justify-between gap-2">
               <UsageInfo
                 count={priceAlerts.length}
-                limit={ALERTS_PER_TYPE}
+                limit={alertLimit}
                 label="Price alerts"
                 plan={plan}
               />
@@ -324,42 +286,6 @@ export function ModernDashboard({
               }}
               onRequestCreate={() => setCreatePriceAlertOpen(true)}
             />
-          </TabsContent>
-
-          <TabsContent value="whale">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <UsageInfo
-                count={walletAlerts.length}
-                limit={ALERTS_PER_TYPE}
-                label="Whale alerts"
-                plan={plan}
-              />
-              <CreateWalletAlertDialog
-                open={createWalletAlertOpen}
-                onOpenChange={setCreateWalletAlertOpen}
-                onSynced={refreshWalletAlerts}
-              />
-            </div>
-            <WalletAlertsList
-              alerts={walletAlerts}
-              onDelete={(id) => {
-                setWalletAlerts((prev) => prev.filter((a) => a.id !== id));
-              }}
-              onToggle={(id) => {
-                setWalletAlerts((prev) =>
-                  prev.map((a) => (a.id === id ? { ...a, is_active: !a.is_active } : a))
-                );
-              }}
-              onRequestCreate={() => setCreateWalletAlertOpen(true)}
-            />
-          </TabsContent>
-
-          <TabsContent value="advanced">
-            <div className="rounded-xl border border-dashed p-12 text-center">
-              <p className="text-muted-foreground text-sm">
-                Composite and conditional alerts coming with Premium plan.
-              </p>
-            </div>
           </TabsContent>
         </Tabs>
       </div>

@@ -13,26 +13,15 @@ interface PriceTriggeredData {
   symbol: string;
   currentPrice: number;
   targetPrice: number;
-  direction: 'above' | 'below';
+  direction: 'above' | 'below' | 'exact';
+  triggeredAt: string;
 }
 
-interface WhaleTriggeredData {
-  type: 'whale:triggered';
-  alertId: string;
-  txHash: string;
-  tokenSymbol: string;
-  valueUsd: number;
-  chain: string;
-  from: string;
-  to: string;
-}
-
-export type TriggerEvent = PriceTriggeredData | WhaleTriggeredData;
+export type TriggerEvent = PriceTriggeredData;
 
 interface UseAlertStreamOptions {
   onPriceUpdate?: (data: PriceUpdateData) => void;
   onPriceTriggered?: (data: PriceTriggeredData) => void;
-  onWhaleTriggered?: (data: WhaleTriggeredData) => void;
 }
 
 const MAX_RETRIES = 5;
@@ -77,12 +66,6 @@ export function useAlertStream(options: UseAlertStreamOptions) {
         const data = JSON.parse(e.data) as PriceTriggeredData;
         data.type = 'price:triggered';
         optionsRef.current.onPriceTriggered?.(data);
-      });
-
-      es.addEventListener('whale:triggered', (e) => {
-        const data = JSON.parse(e.data) as WhaleTriggeredData;
-        data.type = 'whale:triggered';
-        optionsRef.current.onWhaleTriggered?.(data);
       });
 
       es.addEventListener('error', () => {

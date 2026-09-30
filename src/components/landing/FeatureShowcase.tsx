@@ -12,56 +12,38 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Phone } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 
 const features = [
+  {
+    id: 'stream',
+    label: 'Real-time X monitoring',
+    detail:
+      'We use the official X filtered stream: your accounts and keywords become server-side rules, and matched posts are pushed to us within seconds. No polling, no scraping, no missed tweets.',
+  },
   {
     id: 'ai',
     label: 'AI analysis',
     detail:
-      'Each matched tweet gets a bullish / bearish / neutral read and a one-line summary. Powered by GPT-4o-mini, fast enough to not slow down alerts, smart enough to filter the noise.',
+      'Each matched tweet gets a bullish / bearish / neutral read and a one-line summary, so you can filter alerts on sentiment and skip the noise.',
   },
   {
     id: 'price',
     label: 'Price alerts',
     detail:
-      "Pick a coin, set a target price, pick a direction. Real-time Binance WebSocket feed. When it crosses, you know. Fires once then disarms so you don't get spammed.",
-  },
-  {
-    id: 'whale',
-    label: 'Whale wallet tracking',
-    detail:
-      'Add an ETH or SOL address. Set a minimum USD threshold. When a transfer above that amount hits, you get the tx hash, the amount, and the token. Know when smart money moves before CT does.',
+      "Pick a coin, set a target price, pick a direction. Real-time Binance WebSocket feed. When it crosses, you know. Fires once then disarms so you don't get spammed, or set it recurring.",
   },
   {
     id: 'channels',
     label: 'Multi-channel delivery',
     detail:
-      'Telegram calls are the default, but you can also route alerts to email, Discord webhooks, or SMS. Mix and match per alert type. Social to Telegram, price to Discord, whale to SMS.',
-  },
-  {
-    id: 'scores',
-    label: 'Influencer reliability scores',
-    detail:
-      "We snapshot the price when an influencer mentions a token, then check again at 1h and 24h. Over time, each influencer builds a track record per token. You see who actually calls winners vs. who's just loud.",
-  },
-  {
-    id: 'composite',
-    label: 'Composite alerts',
-    detail:
-      'Define multiple conditions ("influencer tweets about SOL" + "SOL price jumps 5%") and set a time window. The alert only fires when all conditions are met. Less noise, more signal.',
-  },
-  {
-    id: 'portfolio',
-    label: 'Portfolio impact',
-    detail:
-      'Add your positions (token, amount, avg buy price). When an alert fires for a token you hold, the notification includes the dollar impact. Not just "SOL is up" but "your 50 SOL gained $320".',
+      'Telegram is the default, and you can also route alerts to email, Discord webhooks, or SMS. Mix and match per alert type. Social to Telegram, price to Discord.',
   },
   {
     id: 'api',
     label: 'REST API',
     detail:
-      'Plug CryptoSentry into your own tools. Fetch your alerts, triggers, and scores from any script or bot. No UI needed.',
+      'Plug CryptoSentry into your own tools. Fetch your alerts and triggers from any script or bot. No UI needed.',
   },
 ];
 
@@ -102,24 +84,24 @@ export default function FeatureShowcase() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Phone className="text-primary h-4 w-4" />
+                    <MessageSquare className="text-primary h-4 w-4" />
                     <Label className="text-muted-foreground text-xs tracking-wider uppercase">
-                      Telegram Call
+                      Telegram alert
                     </Label>
                   </div>
                   <Switch checked disabled />
                 </div>
               </CardContent>
 
-              {/* Simulated incoming call overlay */}
+              {/* Simulated incoming alert */}
               <div className="border-primary/20 bg-primary/5 mx-4 mb-6 rounded-lg border px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="bg-primary/20 flex h-10 w-10 items-center justify-center rounded-full">
-                    <Phone className="text-primary h-5 w-5" />
+                    <MessageSquare className="text-primary h-5 w-5" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">CryptoSentry</p>
-                    <p className="text-primary text-xs">Incoming call...</p>
+                    <p className="text-primary text-xs">$SOL mentioned by @CryptoGems</p>
                   </div>
                   <div className="bg-primary h-3 w-3 animate-pulse rounded-full" />
                 </div>
@@ -130,14 +112,14 @@ export default function FeatureShowcase() {
           {/* Copy */}
           <motion.div variants={fadeInUp} className="flex-1 text-center lg:text-left">
             <h2 className="text-3xl font-semibold tracking-tight">
-              Why a call,
+              Only the tweets
               <br />
-              <span className="text-primary">not a notification?</span>
+              <span className="text-primary">that matter to you.</span>
             </h2>
             <p className="text-muted-foreground mx-auto mt-4 max-w-md text-base leading-relaxed lg:mx-0">
-              Notifications get buried or muted. A Telegram voice call rings through Do Not Disturb,
-              plays on your headphones or car speakers, and takes under 30 seconds from tweet to
-              ring.
+              Pick the accounts, pick the keywords. Matched posts reach your Telegram within seconds
+              of being published, with an AI sentiment read attached. Everything else stays out of
+              your way.
             </p>
           </motion.div>
         </div>

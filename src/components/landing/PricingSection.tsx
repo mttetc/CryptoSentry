@@ -6,52 +6,27 @@ import { fadeInUp, staggerContainer } from './animations';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Check } from 'lucide-react';
+import { PLANS, PLAN_ORDER, describePlan, type PlanId } from '@/lib/config/plan-limits';
 
-const plans = [
-  {
-    name: 'Free',
-    price: '0',
-    description: 'Get started with basic monitoring',
-    features: [
-      '2 alerts (social + price)',
-      'Telegram notifications',
-      'AI sentiment analysis',
-      '<30s tweet-to-call',
-    ],
-    cta: 'Get started',
+const PLAN_DESCRIPTIONS: Record<PlanId, string> = {
+  free: 'Get started with basic monitoring',
+  pro: 'For serious traders who need more coverage',
+  premium: 'Maximum coverage, replies included, API access',
+};
+
+const plans = PLAN_ORDER.map((id) => {
+  const limits = PLANS[id];
+  return {
+    id,
+    name: limits.label,
+    price: String(limits.priceEur),
+    description: PLAN_DESCRIPTIONS[id],
+    features: describePlan(id),
+    cta: id === 'free' ? 'Get started' : 'Coming soon',
     href: '/auth?register=true',
-  },
-  {
-    name: 'Pro',
-    price: '9',
-    description: 'For serious traders who need more coverage',
-    features: [
-      '10 alerts (social + price)',
-      '5 whale wallet alerts',
-      'All notification channels',
-      'Priority polling',
-      'Influencer reliability scores',
-    ],
-    cta: 'Coming soon',
-    href: '/auth?register=true',
-    highlighted: true,
-  },
-  {
-    name: 'Premium',
-    price: '29',
-    description: 'Full-stack crypto intelligence',
-    features: [
-      '50 alerts (social + price)',
-      '20 whale wallet alerts',
-      'All notification channels',
-      'Composite & conditional alerts',
-      'Portfolio impact tracking',
-      'REST API access',
-    ],
-    cta: 'Coming soon',
-    href: '/auth?register=true',
-  },
-];
+    highlighted: id === 'pro',
+  };
+});
 
 export default function PricingSection() {
   return (
@@ -66,7 +41,7 @@ export default function PricingSection() {
         <m.div variants={fadeInUp} className="text-center">
           <h2 className="text-3xl font-semibold tracking-tight">Simple pricing</h2>
           <p className="text-muted-foreground mt-3">
-            Start free. Upgrade when you need more alerts.
+            Start free. Upgrade when you need more accounts, keywords or matched tweets.
           </p>
         </m.div>
 
@@ -75,8 +50,8 @@ export default function PricingSection() {
             <m.div key={plan.name} variants={fadeInUp}>
               <Card
                 className={
-                  'highlighted' in plan && plan.highlighted
-                    ? 'flex h-full flex-col border-primary/50 ring-1 ring-primary/20'
+                  plan.highlighted
+                    ? 'border-primary/50 ring-primary/20 flex h-full flex-col ring-1'
                     : 'flex h-full flex-col'
                 }
               >
@@ -110,8 +85,8 @@ export default function PricingSection() {
           variants={fadeInUp}
           className="text-muted-foreground mx-auto mt-8 max-w-lg text-center text-xs"
         >
-          CryptoSentry is in early access. We rely on public data sources that may occasionally
-          experience disruptions. As adoption grows, we invest in more reliable infrastructure.
+          Social alerts run on the official X API, billed per matched tweet. Plan quotas exist so we
+          can keep that cost predictable.
         </m.p>
       </m.div>
     </section>

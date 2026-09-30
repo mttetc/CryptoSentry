@@ -8,9 +8,7 @@ import { redirect } from 'next/navigation';
 import { getOptionalSession } from '@/lib/api/auth';
 import { getSocialAlertsWithStats } from '@/actions/alerts/lib/queries';
 import { getPriceAlertsWithStats } from '@/actions/alerts/lib/price-queries';
-import { getWalletAlertsWithStats } from '@/actions/wallets/lib/queries';
-import { generateConnectToken } from '@/lib/telegram-connect-token';
-import { createServiceSupabaseClient } from '@/lib/supabase/server';
+import { buildTelegramConnectLink } from '@/lib/telegram-connect-token';
 import { getUserPlan, getUserAlertCount, getPlanLimits } from '@/lib/config/plans';
 
 export const dynamic = 'force-dynamic';
@@ -73,44 +71,42 @@ function ContentSkeleton() {
   );
 }
 
-async function AlertsContent({ userId }: { userId: string }) {
-  const { supabase } = await getOptionalSession();
-  if (!supabase) {
-    return null;
-  }
-  const [initialAlerts, initialPriceAlerts, initialWalletAlerts, plan, alertCount] =
-    await Promise.all([
-      getSocialAlertsWithStats(supabase, userId),
-      getPriceAlertsWithStats(supabase, userId),
-      getWalletAlertsWithStats(supabase, userId),
-      getUserPlan(userId),
-      getUserAlertCount(userId),
-    ]);
+async function AlertsContent({
+  userId,
+  supabase,
+}: {
+  userId: string;
+  supabase: NonNullable<Awaited<ReturnType<typeof getOptionalSession>>['supabase']>;
+}) {
+  const [initialAlerts, initialPriceAlerts, plan, alertCount] = await Promise.all([
+    getSocialAlertsWithStats(supabase, userId),
+    getPriceAlertsWithStats(supabase, userId),
+    getUserPlan(userId),
+    getUserAlertCount(userId),
+  ]);
   const limits = getPlanLimits(plan);
   return (
     <ModernDashboard
       userId={userId}
       initialAlerts={initialAlerts}
       initialPriceAlerts={initialPriceAlerts}
-      initialWalletAlerts={initialWalletAlerts}
       planInfo={{ plan: limits.label, usage: alertCount, limit: limits.maxAlerts }}
     />
   );
 }
 
 export default async function DashboardPage() {
-  const { session } = await getOptionalSession();
+  const { session, supabase } = await getOptionalSession();
 
-  if (!session?.user.id) {
+  if (!session?.user.id || !supabase) {
     redirect('/auth');
   }
 
-  const supabase = createServiceSupabaseClient();
   const { data: telegramSettings } = await supabase
     .from('user_telegram_settings')
     .select('status')
     .eq('user_id', session.user.id)
-    .single();
+    .maybeSingle();
 
   const isTelegramConnected = telegramSettings?.status === 'connected';
 
@@ -120,11 +116,11 @@ export default async function DashboardPage() {
         <DashboardHeader userEmail={session.user.email} />
         <DashboardTitleRow />
         <TelegramQrConnect
-          connectLink={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'CryptoSentryBot'}?start=${generateConnectToken(session.user.id)}`}
+          initialLink={buildTelegramConnectLink(session.user.id)}
           isConnected={isTelegramConnected}
         />
         <Suspense fallback={<ContentSkeleton />}>
-          <AlertsContent userId={session.user.id} />
+          <AlertsContent userId={session.user.id} supabase={supabase} />
         </Suspense>
       </div>
     </DashboardShell>

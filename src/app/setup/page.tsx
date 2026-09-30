@@ -1,13 +1,20 @@
-import { TelegramSetup } from '@/components/telegram/telegram-setup';
+import { TelegramQrConnect } from '@/components/telegram/telegram-qr-connect';
 import { getOptionalSession } from '@/lib/api/auth';
+import { buildTelegramConnectLink } from '@/lib/telegram-connect-token';
 import { redirect } from 'next/navigation';
 
 export default async function SetupPage() {
-  const { session } = await getOptionalSession();
+  const { session, supabase } = await getOptionalSession();
 
-  if (!session?.user.id) {
+  if (!session?.user.id || !supabase) {
     redirect('/auth');
   }
+
+  const { data: telegramSettings } = await supabase
+    .from('user_telegram_settings')
+    .select('status')
+    .eq('user_id', session.user.id)
+    .maybeSingle();
 
   return (
     <div className="container mx-auto max-w-2xl space-y-8 py-8">
@@ -18,7 +25,10 @@ export default async function SetupPage() {
         </p>
       </div>
 
-      <TelegramSetup userId={session.user.id} />
+      <TelegramQrConnect
+        initialLink={buildTelegramConnectLink(session.user.id)}
+        isConnected={telegramSettings?.status === 'connected'}
+      />
     </div>
   );
 }

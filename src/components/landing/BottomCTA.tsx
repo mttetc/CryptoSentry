@@ -9,7 +9,7 @@ export default function BottomCTA() {
   return (
     <section className="relative border-t py-24">
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="h-[300px] w-[500px] rounded-full bg-primary/5 blur-[100px]" />
+        <div className="bg-primary/5 h-[300px] w-[500px] rounded-full blur-[100px]" />
       </div>
 
       <m.div
@@ -19,17 +19,13 @@ export default function BottomCTA() {
         variants={fadeInUp}
         className="relative mx-auto max-w-5xl px-6 text-center"
       >
-        <h2 className="text-2xl font-semibold md:text-3xl">
-          Free to start. No credit card.
-        </h2>
-        <p className="mt-3 text-muted-foreground">
+        <h2 className="text-2xl font-semibold md:text-3xl">Free to start. No credit card.</h2>
+        <p className="text-muted-foreground mt-3">
           Social alerts, price tracking, and AI analysis. Set up in under a minute.
         </p>
         <div className="mt-8">
           <Button asChild size="lg">
-            <NextLink href="/auth?register=true">
-              Get started &rarr;
-            </NextLink>
+            <NextLink href="/auth?register=true">Get started &rarr;</NextLink>
           </Button>
         </div>
       </m.div>

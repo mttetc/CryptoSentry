@@ -13,7 +13,7 @@ const steps = [
   {
     num: '02',
     title: 'Pick accounts',
-    desc: 'Add any public X handle you want to watch. Influencers, whales, insiders.',
+    desc: 'Add any public X handle you want to watch. Influencers, founders, analysts.',
   },
   {
     num: '03',
@@ -22,8 +22,8 @@ const steps = [
   },
   {
     num: '04',
-    title: 'Get called',
-    desc: 'When a keyword matches, Telegram calls you. Your phone rings for real.',
+    title: 'Get alerted',
+    desc: 'When a keyword matches, the tweet lands in your Telegram within seconds.',
   },
 ];
 

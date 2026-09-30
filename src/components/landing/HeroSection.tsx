@@ -26,15 +26,15 @@ export default function HeroSection() {
           >
             Crypto intelligence
             <br />
-            <span className="text-primary">that calls you first.</span>
+            <span className="text-primary">that reaches you first.</span>
           </motion.h1>
           <motion.p
             variants={fadeInUp}
             className="text-muted-foreground mt-6 text-lg leading-relaxed"
           >
-            CryptoSentry monitors influencers, prices, and whale wallets. Then{' '}
-            <strong className="text-foreground">calls you on Telegram</strong> before the market
-            moves. AI-powered sentiment analysis, multi-channel alerts, under 30 seconds.
+            CryptoSentry watches X accounts and prices in real time. Then{' '}
+            <strong className="text-foreground">alerts you on Telegram</strong> before the market
+            moves. AI-powered sentiment analysis, multi-channel delivery, seconds after the post.
           </motion.p>
           <motion.div variants={fadeInUp} className="mt-8 flex items-center gap-4">
             <Button asChild size="lg">

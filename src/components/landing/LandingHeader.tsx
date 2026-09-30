@@ -9,7 +9,7 @@ export default function LandingHeader() {
   const { user } = useUser();
 
   return (
-    <header className="fixed top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md">
+    <header className="bg-background/80 fixed top-0 z-50 w-full border-b backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
         <NextLink href="/" className="flex items-center gap-2">
           <LogoMark size={20} />

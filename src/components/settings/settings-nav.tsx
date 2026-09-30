@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/settings', label: 'General' },
-  { href: '/settings/portfolio', label: 'Portfolio' },
   { href: '/settings/api', label: 'API Keys' },
 ];
 
@@ -14,12 +13,10 @@ export function SettingsNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex gap-1 rounded-lg border border-border/50 bg-muted/30 p-1">
+    <nav className="border-border/50 bg-muted/30 flex gap-1 rounded-lg border p-1">
       {navItems.map((item) => {
         const isActive =
-          item.href === '/settings'
-            ? pathname === '/settings'
-            : pathname.startsWith(item.href);
+          item.href === '/settings' ? pathname === '/settings' : pathname.startsWith(item.href);
 
         return (
           <NextLink

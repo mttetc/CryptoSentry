@@ -2,11 +2,7 @@ import { redirect } from 'next/navigation';
 import { getOptionalSession } from '@/lib/api/auth';
 import { SettingsNav } from '@/components/settings/settings-nav';
 
-export default async function SettingsLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const { session } = await getOptionalSession();
 
   if (!session?.user.id) {

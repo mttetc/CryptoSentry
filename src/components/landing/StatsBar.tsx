@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator';
 
 const stats = [
   { label: 'to start', value: 'Free' },
-  { label: 'alert to call', value: '<30s' },
+  { label: 'tweet to alert', value: 'seconds' },
   { label: 'to set up', value: '1 min' },
 ];
 
@@ -25,7 +25,7 @@ export default function StatsBar() {
           {stats.map((stat) => (
             <div key={stat.label} className="flex items-center gap-3">
               <span className="font-mono text-lg font-semibold">{stat.value}</span>
-              <span className="text-sm text-muted-foreground">{stat.label}</span>
+              <span className="text-muted-foreground text-sm">{stat.label}</span>
             </div>
           ))}
         </div>

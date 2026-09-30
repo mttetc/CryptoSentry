@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Key, Plus, Copy, AlertTriangle } from 'lucide-react';
-import { createApiKey, revokeApiKey } from '@/actions/api-keys';
+import { createApiKey, revokeApiKey, listApiKeys } from '@/actions/api-keys';
 
 // --- Types ---
 
@@ -49,8 +49,6 @@ interface ApiKeyManagerProps {
 const AVAILABLE_SCOPES = [
   { value: 'alerts:read', label: 'Read alerts' },
   { value: 'alerts:write', label: 'Write alerts' },
-  { value: 'portfolio:read', label: 'Read portfolio' },
-  { value: 'portfolio:write', label: 'Write portfolio' },
 ] as const;
 
 // --- Helpers ---
@@ -114,19 +112,24 @@ export function ApiKeyManager({ initialKeys }: ApiKeyManagerProps) {
       // Show the key to the user
       setNewKeyValue(result.key);
 
-      // Add to list with optimistic data
-      setKeys((prev) => [
-        {
-          id: crypto.randomUUID(),
-          prefix: `${result.key.slice(0, 12)}...`,
-          name: keyName.trim(),
-          scopes: selectedScopes,
-          last_used_at: null,
-          created_at: new Date().toISOString(),
-          is_active: true,
-        },
-        ...prev,
-      ]);
+      // Re-fetch the real list so revoke works on the fresh key (prefix is 16 chars server-side)
+      const refreshed = await listApiKeys();
+      if (refreshed.success) {
+        setKeys(refreshed.keys);
+      } else {
+        setKeys((prev) => [
+          {
+            id: `pending-${Date.now()}`,
+            prefix: `${result.key.slice(0, 16)}...`,
+            name: keyName.trim(),
+            scopes: selectedScopes,
+            last_used_at: null,
+            created_at: new Date().toISOString(),
+            is_active: true,
+          },
+          ...prev,
+        ]);
+      }
 
       toast.success('API key created');
     } catch {

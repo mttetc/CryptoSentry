@@ -16,7 +16,7 @@ const sections = [
     content: 'We use the collected information to:',
     items: [
       'Provide and maintain the alert service',
-      'Deliver Telegram voice call alerts when keywords match',
+      'Deliver alerts (Telegram, Discord, email or SMS) when keywords match',
       'Improve our service and user experience',
       'Communicate with you about your account',
     ],
@@ -25,15 +25,21 @@ const sections = [
     title: 'Information Sharing',
     content: 'We do not sell your personal information. We may share your information with:',
     items: [
-      'Apify (to monitor public X/Twitter posts)',
-      'Telegram (to deliver voice call alerts)',
+      'X Corp, via the official X API (filtered stream) used to receive public posts matching your rules',
+      'Telegram, Discord, Resend (email) or Telnyx (SMS), depending on the channels you enable',
       'Supabase (database and authentication provider)',
       'Law enforcement when required by law',
     ],
   },
   {
+    title: 'Tweet Data We Store',
+    content:
+      'For each matched public post we store only its id, text, author handle and timestamp, together with the AI sentiment label and summary derived from it. We do not store engagement metrics, media, or any data about accounts that did not match one of your alerts.',
+  },
+  {
     title: 'Data Security',
-    content: 'We implement appropriate security measures to protect your personal information, including encryption of sensitive data, access controls, and secure data storage.',
+    content:
+      'We implement appropriate security measures to protect your personal information, including encryption of sensitive data, access controls, and secure data storage.',
   },
   {
     title: 'Your Rights',
@@ -47,15 +53,18 @@ const sections = [
   },
   {
     title: 'Cookies and Tracking',
-    content: 'We use cookies for session management and to remember your preferences. We do not use third-party tracking or advertising cookies.',
+    content:
+      'We use cookies for session management and to remember your preferences. We do not use third-party tracking or advertising cookies.',
   },
   {
     title: "Children's Privacy",
-    content: 'Our service is not intended for children under 18. We do not knowingly collect personal information from children.',
+    content:
+      'Our service is not intended for children under 18. We do not knowingly collect personal information from children.',
   },
   {
     title: 'Changes to Privacy Policy',
-    content: 'We may update this privacy policy from time to time. We will notify you of any changes by posting the new policy on this page.',
+    content:
+      'We may update this privacy policy from time to time. We will notify you of any changes by posting the new policy on this page.',
   },
 ];
 

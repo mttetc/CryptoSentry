@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Mail, MessageSquare, Phone, Trash2 } from 'lucide-react';
 import {
   addNotificationChannel,
+  getNotificationChannels,
   updateNotificationChannel,
   removeNotificationChannel,
 } from '@/actions/channels';
@@ -31,7 +32,7 @@ interface NotificationChannelsProps {
 
 // --- Constants ---
 
-const ALERT_TYPE_OPTIONS = ['social', 'price', 'whale', 'composite'] as const;
+const ALERT_TYPE_OPTIONS = ['social', 'price'] as const;
 
 const CHANNEL_LABELS: Record<string, string> = {
   email: 'Email address',
@@ -128,7 +129,7 @@ export function NotificationChannels({ channels: rawChannels }: NotificationChan
     if (existing) {
       return existing.alert_types;
     }
-    return ['social', 'price', 'whale', 'composite'];
+    return ['social', 'price'];
   }
 
   function toggleAlertType(channelType: string, alertType: string) {
@@ -162,7 +163,7 @@ export function NotificationChannels({ channels: rawChannels }: NotificationChan
         const result = await updateNotificationChannel({
           id: existing.id,
           config: { [configKey]: value },
-          alertTypes: alertTypes as ('social' | 'price' | 'whale' | 'composite')[],
+          alertTypes: alertTypes as ('social' | 'price')[],
         });
 
         if (!result.success) {
@@ -183,7 +184,7 @@ export function NotificationChannels({ channels: rawChannels }: NotificationChan
         const result = await addNotificationChannel({
           channelType: channelType as 'email' | 'discord' | 'sms',
           config: { [configKey]: value },
-          alertTypes: alertTypes as ('social' | 'price' | 'whale' | 'composite')[],
+          alertTypes: alertTypes as ('social' | 'price')[],
         });
 
         if (!result.success) {
@@ -191,17 +192,11 @@ export function NotificationChannels({ channels: rawChannels }: NotificationChan
           return;
         }
 
-        // Refresh with optimistic update (id will be stale but page will revalidate)
-        setChannels((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            channel_type: channelType,
-            config: { [configKey]: value },
-            is_active: true,
-            alert_types: alertTypes,
-          },
-        ]);
+        // Re-fetch the real row so subsequent update/remove use a valid id
+        const refreshed = await getNotificationChannels();
+        if (refreshed.success) {
+          setChannels(refreshed.data.map(castChannel));
+        }
         toast.success(`${channelType} channel added`);
       }
 

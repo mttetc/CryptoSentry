@@ -18,7 +18,7 @@ export default function LegalPage({ title, lastUpdated, sections }: LegalPagePro
   return (
     <div className="min-h-screen text-white">
       <LandingHeader />
-      <main className="pb-24 pt-28">
+      <main className="pt-28 pb-24">
         <div className="mx-auto max-w-5xl px-6">
           <div className="mb-12">
             <Link
@@ -27,7 +27,9 @@ export default function LegalPage({ title, lastUpdated, sections }: LegalPagePro
             >
               <span aria-hidden="true">&larr;</span> Back
             </Link>
-            <h1 className="text-3xl font-semibold tracking-tight text-white md:text-4xl">{title}</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-white md:text-4xl">
+              {title}
+            </h1>
             <p className="mt-2 text-sm text-neutral-500">Last updated: {lastUpdated}</p>
           </div>
 

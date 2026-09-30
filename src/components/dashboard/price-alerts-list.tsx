@@ -83,6 +83,15 @@ function DirectionIconComponent({ direction }: { direction: string }) {
   return <Target className="h-3 w-3" />;
 }
 
+function hasServerDrift(server: PriceAlertWithStats, local: PriceAlertWithStats): boolean {
+  return (
+    server.is_active !== local.is_active ||
+    server.triggered_at !== local.triggered_at ||
+    server.direction !== local.direction ||
+    server.recurring !== local.recurring
+  );
+}
+
 function PriceAlertCard({
   alert: initialAlert,
   livePrice,
@@ -98,10 +107,7 @@ function PriceAlertCard({
   const [isToggling, setIsToggling] = useState(false);
 
   // Sync parent changes (e.g. after refresh)
-  if (
-    initialAlert.is_active !== alert.is_active ||
-    initialAlert.triggered_at !== alert.triggered_at
-  ) {
+  if (hasServerDrift(initialAlert, alert)) {
     setAlert(initialAlert);
   }
 

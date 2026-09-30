@@ -24,7 +24,7 @@ interface FeedItem extends AlertTweet {
 
 interface TriggerFeedItem {
   id: string;
-  type: 'price' | 'whale';
+  type: 'price';
   message: string;
   timestamp: string;
 }
@@ -42,6 +42,8 @@ function collectFeedItems(alerts: SocialAlertWithStats[]): FeedItem[] {
         alertId: alert.id,
         matchedKeywords: matched,
         callEnabled: alert.call_enabled,
+        sentiment: tweet.sentiment ?? null,
+        summary: tweet.summary ?? null,
       });
     }
   }
@@ -52,22 +54,12 @@ function collectFeedItems(alerts: SocialAlertWithStats[]): FeedItem[] {
 }
 
 function collectTriggerItems(triggers: TriggerEvent[]): TriggerFeedItem[] {
-  return triggers.slice(0, 50).map((t, i) => {
-    if (t.type === 'price:triggered') {
-      return {
-        id: `trigger-price-${t.alertId}-${i}`,
-        type: 'price' as const,
-        message: `${t.symbol.toUpperCase()} hit $${t.currentPrice} (target: $${t.targetPrice} ${t.direction})`,
-        timestamp: new Date().toISOString(),
-      };
-    }
-    return {
-      id: `trigger-whale-${t.alertId}-${i}`,
-      type: 'whale' as const,
-      message: `Whale: $${t.valueUsd.toFixed(0)} ${t.tokenSymbol} on ${t.chain}`,
-      timestamp: new Date().toISOString(),
-    };
-  });
+  return triggers.slice(0, 50).map((t) => ({
+    id: `trigger-price-${t.alertId}-${t.triggeredAt}`,
+    type: 'price' as const,
+    message: `${t.symbol.toUpperCase()} hit $${t.currentPrice} (target: $${t.targetPrice} ${t.direction})`,
+    timestamp: t.triggeredAt,
+  }));
 }
 
 function highlightKeywords(text: string, keywords: string[]) {
@@ -168,11 +160,10 @@ function TriggerFeedEntry({ item }: { item: TriggerFeedItem }) {
           variant="outline"
           className={cn(
             'mt-0.5 shrink-0 font-mono text-[10px]',
-            item.type === 'price' && 'border-yellow-500/20 text-yellow-500',
-            item.type === 'whale' && 'border-blue-500/20 text-blue-500'
+            item.type === 'price' && 'border-yellow-500/20 text-yellow-500'
           )}
         >
-          {item.type === 'price' ? 'PRICE' : 'WHALE'}
+          PRICE
         </Badge>
         <div className="min-w-0 flex-1">
           <p className="text-muted-foreground text-sm">{item.message}</p>

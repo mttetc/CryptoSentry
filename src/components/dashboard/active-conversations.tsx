@@ -18,7 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { SpotlightCard } from '@/components/ui/spotlight';
 import {
-  Twitter,
+  AtSign,
   Hash,
   Heart,
   Repeat2,
@@ -73,7 +73,7 @@ function TweetCard({ tweet }: { tweet: AlertTweet }) {
           rel="noopener noreferrer"
           className="text-muted-foreground hover:text-foreground"
         >
-          <Twitter className="h-3 w-3" />
+          <AtSign className="h-3 w-3" />
         </a>
       </div>
       <p className="text-muted-foreground mb-1.5 text-xs leading-relaxed">
@@ -176,7 +176,7 @@ function CompactAlertCard({
 
   return (
     <motion.div
-      layoutId={`${alert.account}:${[...alert.keywords].toSorted().join(',')}`}
+      layoutId={alert.id}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -20 }}
@@ -410,7 +410,7 @@ export function ActiveConversations({
           <AnimatePresence mode="popLayout">
             {deferredAlerts.map((alert) => (
               <CompactAlertCard
-                key={`${alert.account}:${[...alert.keywords].toSorted().join(',')}`}
+                key={alert.id}
                 alert={alert}
                 isFlashing={flashAlertIds.has(alert.id)}
                 onDelete={onDeleteAlert}

@@ -31,8 +31,8 @@ const TWEETS: Tweet[] = [
     hasAlert: true,
   },
   {
-    handle: '@whale_alert',
-    text: '50,000,000 $USDT transferred from Binance to unknown wallet.',
+    handle: '@OnChainDesk',
+    text: 'Big $USDT inflow to exchanges this morning. Volatility incoming.',
     tokens: ['$USDT'],
     hasAlert: true,
   },
@@ -45,7 +45,9 @@ const TWEETS: Tweet[] = [
 ];
 
 function highlightTokens(text: string, tokens: string[]) {
-  if (tokens.length === 0) { return text; }
+  if (tokens.length === 0) {
+    return text;
+  }
 
   const parts: (string | { token: string; key: string })[] = [];
   let remaining = text;
@@ -54,18 +56,22 @@ function highlightTokens(text: string, tokens: string[]) {
   for (const token of tokens) {
     const idx = remaining.indexOf(token);
     if (idx !== -1) {
-      if (idx > 0) { parts.push(remaining.slice(0, idx)); }
+      if (idx > 0) {
+        parts.push(remaining.slice(0, idx));
+      }
       parts.push({ token, key: `${token}-${keyIdx++}` });
       remaining = remaining.slice(idx + token.length);
     }
   }
-  if (remaining) { parts.push(remaining); }
+  if (remaining) {
+    parts.push(remaining);
+  }
 
   return parts.map((part) =>
     typeof part === 'string' ? (
       part
     ) : (
-      <span key={part.key} className="font-semibold text-sentry-green">
+      <span key={part.key} className="text-sentry-green font-semibold">
         {part.token}
       </span>
     )
@@ -121,19 +127,26 @@ export default function HeroFeed() {
 
     // Restart loop after all tweets + pause
     timeouts.push(
-      setTimeout(() => {
-        resetAndRestart();
-      }, TWEETS.length * 2500 + 2000)
+      setTimeout(
+        () => {
+          resetAndRestart();
+        },
+        TWEETS.length * 2500 + 2000
+      )
     );
 
-    return () => { timeouts.forEach((t) => { clearTimeout(t); }); };
+    return () => {
+      timeouts.forEach((t) => {
+        clearTimeout(t);
+      });
+    };
   }, [cycle, resetAndRestart]);
 
   return (
     <div className="relative w-full max-w-md overflow-hidden rounded-lg border border-white/10 bg-[#111111]">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-        <div className="h-2 w-2 rounded-full bg-sentry-green" />
+        <div className="bg-sentry-green h-2 w-2 rounded-full" />
         <span className="font-mono text-sm text-neutral-400">Live Feed</span>
       </div>
 
@@ -152,7 +165,7 @@ export default function HeroFeed() {
               >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
-                    <span className="font-mono text-sm font-medium text-sentry-green">
+                    <span className="text-sentry-green font-mono text-sm font-medium">
                       {tweet.handle}
                     </span>
                     <p className="mt-1 text-sm leading-relaxed text-neutral-300">
@@ -165,9 +178,9 @@ export default function HeroFeed() {
                         variants={alertBadgePop}
                         initial="hidden"
                         animate="visible"
-                        className="ml-3 shrink-0 rounded bg-sentry-green/15 px-2 py-0.5 font-mono text-xs text-sentry-green"
+                        className="bg-sentry-green/15 text-sentry-green ml-3 shrink-0 rounded px-2 py-0.5 font-mono text-xs"
                       >
-                        CALLING
+                        ALERT
                       </motion.span>
                     )}
                   </AnimatePresence>
@@ -178,7 +191,7 @@ export default function HeroFeed() {
         </AnimatePresence>
       </div>
 
-      {/* Telegram call toast */}
+      {/* Telegram alert toast */}
       <AnimatePresence>
         {toastTweet !== null && TWEETS[toastTweet] && (
           <motion.div
@@ -186,21 +199,31 @@ export default function HeroFeed() {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="absolute bottom-4 left-4 right-4 rounded-lg border border-sentry-green/20 bg-[#1a1a1a] px-4 py-3"
+            className="border-sentry-green/20 absolute right-4 bottom-4 left-4 rounded-lg border bg-[#1a1a1a] px-4 py-3"
           >
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sentry-green/20">
-                <svg className="h-4 w-4 text-sentry-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+              <div className="bg-sentry-green/20 flex h-8 w-8 items-center justify-center rounded-full">
+                <svg
+                  className="text-sentry-green h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"
+                  />
                 </svg>
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-white">CryptoSentry</p>
-                <p className="text-xs text-sentry-green">
+                <p className="text-sentry-green text-xs">
                   {TWEETS[toastTweet].tokens[0]} mentioned by {TWEETS[toastTweet].handle}
                 </p>
               </div>
-              <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-sentry-green" />
+              <div className="bg-sentry-green h-2.5 w-2.5 animate-pulse rounded-full" />
             </div>
           </motion.div>
         )}

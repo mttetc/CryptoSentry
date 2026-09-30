@@ -15,13 +15,13 @@ export default function SettingsError({
     <div className="container mx-auto flex min-h-[400px] items-center justify-center py-8">
       <Card className="max-w-md">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-destructive">
+          <CardTitle className="text-destructive flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
             Settings Error
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {error.message || 'Something went wrong loading your settings.'}
           </p>
           <Button onClick={reset}>Try Again</Button>

@@ -5,28 +5,33 @@ import type {
   PipelineDeps,
   AnalyzedMatch,
 } from './types';
+import { findMatches, normalizeAccount, type Match } from './matching';
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
 import { sendUnifiedAlert } from '@/actions/messaging/unified-notifications';
 import { analyzeTweet } from '@/lib/services/ai';
-import { captureInfluencerEvent } from '@/lib/services/influencer/scorer';
 
-// --- Dedup cache (singleton per process) ---
+// --- In-memory dedup (fast path; the processed_tweets table is the source of truth) ---
 
 const seenTweetIds = new Set<string>();
 const MAX_SEEN_CACHE = 10_000;
+const PROCESSED_RETENTION_DAYS = 30;
 
 export function dedup(tweets: TweetData[]): TweetData[] {
   const fresh: TweetData[] = [];
+  const batchIds = new Set<string>();
 
   for (const tweet of tweets) {
-    if (seenTweetIds.has(tweet.id)) {
+    if (seenTweetIds.has(tweet.id) || batchIds.has(tweet.id)) {
       continue;
     }
-    seenTweetIds.add(tweet.id);
+    batchIds.add(tweet.id);
     fresh.push(tweet);
   }
 
-  // Evict oldest entries when cache grows too large
+  for (const id of batchIds) {
+    seenTweetIds.add(id);
+  }
+
   if (seenTweetIds.size > MAX_SEEN_CACHE) {
     const excess = seenTweetIds.size - MAX_SEEN_CACHE;
     const iterator = seenTweetIds.values();
@@ -45,104 +50,121 @@ export function clearDedupCache(): void {
   seenTweetIds.clear();
 }
 
-// --- Keyword matching ---
+/**
+ * Claim tweets in processed_tweets. Only rows we inserted come back, so two processes (or a
+ * restart replaying the same posts) can never notify twice.
+ */
+async function claimTweets(tweets: TweetData[]): Promise<TweetData[]> {
+  if (tweets.length === 0) {
+    return [];
+  }
+  const supabase = createServiceSupabaseClient();
+  const { data, error } = await supabase
+    .from('processed_tweets')
+    .upsert(
+      tweets.map((t) => ({ tweet_id: t.id, account: normalizeAccount(t.author.userName) })),
+      { onConflict: 'tweet_id', ignoreDuplicates: true }
+    )
+    .select('tweet_id');
 
-interface KeywordIndex {
-  keyword: string;
-  alert: SocialAlertRow;
-}
-
-export function buildKeywordIndex(alerts: SocialAlertRow[]): KeywordIndex[] {
-  return alerts.flatMap((alert) =>
-    alert.keywords.map((keyword) => ({
-      keyword: keyword.toLowerCase(),
-      alert,
-    }))
-  );
-}
-
-export function findMatches(
-  alerts: SocialAlertRow[],
-  tweets: TweetData[]
-): { alert: SocialAlertRow; tweet: TweetData }[] {
-  const index = buildKeywordIndex(alerts);
-  const matches: { alert: SocialAlertRow; tweet: TweetData }[] = [];
-
-  for (const tweet of tweets) {
-    const lowerText = tweet.text.toLowerCase();
-    const matchedAlertIds = new Set<string>();
-
-    for (const { keyword, alert } of index) {
-      if (matchedAlertIds.has(alert.id)) {
-        continue;
-      }
-      if (lowerText.includes(keyword)) {
-        matchedAlertIds.add(alert.id);
-        matches.push({ alert, tweet });
-      }
-    }
+  if (error) {
+    console.error('[Pipeline] Failed to claim tweets, processing without persistence:', error);
+    return tweets;
   }
 
-  return matches;
+  const claimed = new Set((data ?? []).map((row) => row.tweet_id));
+  return tweets.filter((t) => claimed.has(t.id));
+}
+
+export async function pruneProcessedTweets(): Promise<void> {
+  const supabase = createServiceSupabaseClient();
+  const cutoff = new Date(
+    Date.now() - PROCESSED_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+  const { error } = await supabase.from('processed_tweets').delete().lt('processed_at', cutoff);
+  if (error) {
+    console.error('[Pipeline] Failed to prune processed tweets:', error);
+  }
 }
 
 // --- AI analysis ---
 
 async function analyzeMatches(
-  matches: { alert: SocialAlertRow; tweet: TweetData }[]
-): Promise<AnalyzedMatch[]> {
+  matches: Match[]
+): Promise<(AnalyzedMatch & { matchedKeywords: string[] })[]> {
+  // One analysis per distinct tweet, shared across alerts matching it.
+  const byTweet = new Map<
+    string,
+    Promise<{ sentiment: AnalyzedMatch['sentiment']; summary: string }>
+  >();
+  for (const { tweet } of matches) {
+    if (!byTweet.has(tweet.id)) {
+      byTweet.set(tweet.id, analyzeTweet(tweet.text));
+    }
+  }
+
   const analyses = await Promise.allSettled(
-    matches.map(async ({ alert, tweet }) => {
-      const analysis = await analyzeTweet(tweet.text);
-      return { alert, tweet, sentiment: analysis.sentiment, summary: analysis.summary };
+    matches.map(async ({ alert, tweet, matchedKeywords }) => {
+      const analysis = await (byTweet.get(tweet.id) ?? analyzeTweet(tweet.text));
+      return {
+        alert,
+        tweet,
+        matchedKeywords,
+        sentiment: analysis.sentiment,
+        summary: analysis.summary,
+      };
     })
   );
 
   return analyses
-    .filter((r): r is PromiseFulfilledResult<AnalyzedMatch> => r.status === 'fulfilled')
+    .filter(
+      (r): r is PromiseFulfilledResult<AnalyzedMatch & { matchedKeywords: string[] }> =>
+        r.status === 'fulfilled'
+    )
     .map((r) => r.value);
 }
 
-function filterBySentiment(matches: AnalyzedMatch[]): AnalyzedMatch[] {
-  return matches.filter(({ alert, sentiment }) => {
-    if (!alert.sentiment_filter) {
-      return true;
-    }
-    return alert.sentiment_filter === sentiment;
-  });
+function filterBySentiment<T extends AnalyzedMatch>(matches: T[]): T[] {
+  return matches.filter(
+    ({ alert, sentiment }) => !alert.sentiment_filter || alert.sentiment_filter === sentiment
+  );
 }
 
-// --- I/O helpers (used in prod when no deps injected) ---
+// --- I/O helpers ---
 
 export async function fetchActiveAlerts(): Promise<SocialAlertRow[]> {
   const supabase = createServiceSupabaseClient();
   const { data, error } = await supabase
     .from('social_alerts')
-    .select('id, user_id, platform, keywords, sentiment_filter, account, call_enabled')
-    .eq('is_active', true);
+    .select(
+      'id, user_id, platform, keywords, sentiment_filter, account, call_enabled, include_replies'
+    )
+    .eq('is_active', true)
+    .eq('platform', 'twitter');
 
   if (error) {
     console.error('[Pipeline] Error loading alerts:', error);
     return [];
   }
 
-  return (data as SocialAlertRow[]) || [];
+  return data ?? [];
 }
 
-function buildEngagement(tweet: TweetData) {
-  return {
-    likes: tweet.engagement?.likes ?? 0,
-    retweets: tweet.engagement?.retweets ?? 0,
-    replies: tweet.engagement?.replies ?? 0,
-  };
+interface TriggerContext {
+  alert: SocialAlertRow;
+  tweet: TweetData;
+  matchedKeywords: string[];
+  sentiment?: string;
+  summary?: string;
 }
 
-async function persistTrigger(
-  alert: SocialAlertRow,
-  tweet: TweetData,
-  sentiment?: string,
-  summary?: string
-): Promise<void> {
+async function persistTrigger({
+  alert,
+  tweet,
+  matchedKeywords,
+  sentiment,
+  summary,
+}: TriggerContext): Promise<void> {
   const supabase = createServiceSupabaseClient();
   const { error } = await supabase.from('alert_triggers').insert({
     alert_id: alert.id,
@@ -154,8 +176,9 @@ async function persistTrigger(
       content: tweet.text,
       tweet_url: tweet.url,
       tweet_id: tweet.id,
+      tweet_type: tweet.type,
       author: tweet.author.userName,
-      engagement: buildEngagement(tweet),
+      matched_keywords: matchedKeywords,
     },
     triggered_at: new Date().toISOString(),
   });
@@ -165,76 +188,70 @@ async function persistTrigger(
   }
 }
 
-async function triggerAlert(
-  alert: SocialAlertRow,
-  tweet: TweetData,
-  sentiment?: string,
-  summary?: string
-): Promise<void> {
-  const notification = {
-    userId: alert.user_id,
-    alertType: 'social' as const,
-    message: `Social Alert: ${alert.platform} mentioned your keywords`,
-    data: {
-      account: alert.account,
-      keywords: alert.keywords,
-      tweet_url: tweet.url,
-      sentiment,
-      summary,
-    },
-  };
-
+async function triggerAlert(context: TriggerContext): Promise<void> {
+  const { alert, tweet, matchedKeywords, sentiment, summary } = context;
   await Promise.allSettled([
-    persistTrigger(alert, tweet, sentiment, summary),
-    sendUnifiedAlert(notification),
+    persistTrigger(context),
+    sendUnifiedAlert({
+      userId: alert.user_id,
+      alertType: 'social',
+      alertId: alert.id,
+      message: `@${tweet.author.userName} mentioned ${matchedKeywords.join(', ')}`,
+      data: {
+        account: tweet.author.userName,
+        keywords: matchedKeywords,
+        tweet_url: tweet.url,
+        tweet_type: tweet.type,
+        content: tweet.text,
+        sentiment,
+        summary,
+      },
+    }),
   ]);
-
-  // Fire-and-forget: capture influencer event for scoring
-  captureInfluencerEvent(alert.account, tweet.text, tweet.id).catch(() => {
-    // Silent - scoring is non-critical
-  });
 }
 
 // --- Main entry point ---
 
 /**
- * Process tweets through the pipeline: dedup -> match -> analyze -> filter -> trigger.
+ * Dedup (memory) -> claim (DB) -> match per account -> analyze -> sentiment filter -> trigger.
  *
- * In prod: called with no deps - fetches alerts from Supabase, persists + broadcasts.
- * In dev/test: pass `deps` to inject alerts and a custom trigger (no Supabase needed).
+ * In prod: called by the stream provider with no deps.
+ * In dev/test: pass `deps` to inject alerts, a log-only trigger and skip the DB claim.
  */
 export async function processTweets(
   tweets: TweetData[],
   deps?: PipelineDeps
 ): Promise<ProcessingResult> {
-  const fresh = dedup(tweets);
+  let fresh = dedup(tweets);
   if (fresh.length === 0) {
     return { processed: 0, matched: 0, triggered: 0 };
   }
 
-  console.warn(`[Pipeline] Processing ${fresh.length} new tweets`);
+  if (!deps?.skipPersistence) {
+    fresh = await claimTweets(fresh);
+    if (fresh.length === 0) {
+      return { processed: 0, matched: 0, triggered: 0 };
+    }
+  }
 
   const alerts = deps ? deps.alerts : await fetchActiveAlerts();
-  const twitterAlerts = alerts.filter((a) => a.platform === 'twitter');
-  const matches = findMatches(twitterAlerts, fresh);
+  const matches = findMatches(alerts, fresh);
 
   if (matches.length === 0) {
     return { processed: fresh.length, matched: 0, triggered: 0 };
   }
 
-  console.warn(`[Pipeline] Found ${matches.length} keyword matches`);
+  console.warn(`[Pipeline] ${matches.length} match(es) on ${fresh.length} tweet(s)`);
 
-  // Analyze with AI (non-blocking, fallback to neutral)
   const analyzed = await analyzeMatches(matches);
   const filtered = filterBySentiment(analyzed);
 
-  console.warn(`[Pipeline] After sentiment filter: ${filtered.length} matches`);
-
   const onTrigger = deps?.onTrigger;
-
   const results = await Promise.allSettled(
-    filtered.map(({ alert, tweet, sentiment, summary }) =>
-      onTrigger ? onTrigger(alert, tweet) : triggerAlert(alert, tweet, sentiment, summary)
+    filtered.map(({ alert, tweet, matchedKeywords, sentiment, summary }) =>
+      onTrigger
+        ? onTrigger(alert, tweet)
+        : triggerAlert({ alert, tweet, matchedKeywords, sentiment, summary })
     )
   );
 

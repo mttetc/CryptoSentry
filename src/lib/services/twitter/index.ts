@@ -1,3 +1,11 @@
 export { processTweets } from './pipeline';
 export { socialMonitor } from './social-monitor';
-export type { TweetData, SocialAlertRow, ProcessingResult, PipelineDeps } from './types';
+export { findMatches, buildStreamRules, normalizeAccount, keywordMatches } from './matching';
+export type {
+  TweetData,
+  TweetType,
+  SocialAlertRow,
+  ProcessingResult,
+  PipelineDeps,
+  TweetProvider,
+} from './types';

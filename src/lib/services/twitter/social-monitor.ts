@@ -1,141 +1,130 @@
-import { rettiwtClient, normalizeRettiwtTweet } from './rettiwt-client';
-import { processTweets, fetchActiveAlerts } from './pipeline';
-import type { SocialAlertRow } from './types';
+import { processTweets, fetchActiveAlerts, pruneProcessedTweets } from './pipeline';
+import { XFilteredStreamProvider, readXStreamConfig } from './providers/x-filtered-stream';
+import { getUsersOverTweetQuota } from '@/lib/config/plans';
+import type { SocialAlertRow, TweetProvider } from './types';
 
-const DEFAULT_POLL_INTERVAL_MS = 120_000; // 2 minutes
-const ALERT_REFRESH_INTERVAL_MS = 600_000; // Refresh alerts every 10 min
-const MIN_STAGGER_MS = 2000;
+const ALERT_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
+const REFRESH_DEBOUNCE_MS = 2000;
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
+/**
+ * Orchestrates the push-based tweet provider: loads active alerts, drops users over their monthly
+ * quota, syncs the provider's server-side rules, and feeds delivered tweets to the pipeline.
+ */
 export class SocialMonitor {
+  private provider: TweetProvider | null = null;
   private alerts: SocialAlertRow[] = [];
+  private eligibleAlerts: SocialAlertRow[] = [];
   private isMonitoring = false;
-  private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private refreshing: Promise<void> | null = null;
+  private refreshQueued = false;
 
   async startMonitoring(): Promise<void> {
     if (this.isMonitoring) {
       return;
     }
 
-    this.alerts = await fetchActiveAlerts();
+    const config = readXStreamConfig();
+    if (!config) {
+      console.warn('[SocialMonitor] X_BEARER_TOKEN not set; social alerts are disabled');
+      return;
+    }
+
+    this.provider = new XFilteredStreamProvider(config);
     this.isMonitoring = true;
+
+    await this.doRefresh();
+    await this.provider.start((tweets) => processTweets(tweets));
 
     this.refreshTimer = setInterval(() => {
       this.refreshAlerts().catch(console.error);
+      pruneProcessedTweets().catch(console.error);
     }, ALERT_REFRESH_INTERVAL_MS);
 
-    this.schedulePoll(0);
-    console.warn(`[SocialMonitor] Started with ${this.alerts.length} alerts`);
+    console.warn(
+      `[SocialMonitor] Started with ${this.eligibleAlerts.length}/${this.alerts.length} eligible alerts`
+    );
   }
 
   async stopMonitoring(): Promise<void> {
     this.isMonitoring = false;
-    if (this.pollTimer) {
-      clearTimeout(this.pollTimer);
-      this.pollTimer = null;
-    }
     if (this.refreshTimer) {
       clearInterval(this.refreshTimer);
       this.refreshTimer = null;
     }
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    await this.provider?.stop();
+    this.provider = null;
     console.warn('[SocialMonitor] Stopped');
   }
 
-  async refreshAlerts(): Promise<void> {
+  /**
+   * Called after any alert mutation. Debounced and serialized so a burst of edits produces one
+   * rule sync (each sync is a few X API calls, none of them billed).
+   */
+  refreshAlerts(): Promise<void> {
+    if (!this.isMonitoring) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+      }
+      this.debounceTimer = setTimeout(() => {
+        this.debounceTimer = null;
+        this.runRefresh().then(resolve, (error) => {
+          console.error('[SocialMonitor] Refresh failed:', error);
+          resolve();
+        });
+      }, REFRESH_DEBOUNCE_MS);
+    });
+  }
+
+  private runRefresh(): Promise<void> {
+    if (this.refreshing) {
+      this.refreshQueued = true;
+      return this.refreshing;
+    }
+    this.refreshing = this.doRefresh().finally(() => {
+      this.refreshing = null;
+      if (this.refreshQueued) {
+        this.refreshQueued = false;
+        this.runRefresh().catch(console.error);
+      }
+    });
+    return this.refreshing;
+  }
+
+  private async doRefresh(): Promise<void> {
     this.alerts = await fetchActiveAlerts();
+    const overQuota = await getUsersOverTweetQuota(this.alerts.map((a) => a.user_id));
+    this.eligibleAlerts = this.alerts.filter((a) => !overQuota.has(a.user_id));
+
+    if (overQuota.size > 0) {
+      console.warn(
+        `[SocialMonitor] ${overQuota.size} user(s) over monthly tweet quota, alerts paused`
+      );
+    }
+
+    await this.provider?.syncAlerts(this.eligibleAlerts);
   }
 
   getStatus() {
-    const accounts = this.getUniqueAccountsSorted();
     return {
       isMonitoring: this.isMonitoring,
-      activeAccounts: accounts.length,
-      totalAlerts: this.alerts.filter((a) => a.platform === 'twitter').length,
+      totalAlerts: this.alerts.length,
+      eligibleAlerts: this.eligibleAlerts.length,
+      provider: this.provider?.getStatus() ?? null,
     };
-  }
-
-  // Returns unique accounts sorted by priority (most-followed first)
-  private getUniqueAccountsSorted(): string[] {
-    const accountCounts = new Map<string, number>();
-    for (const alert of this.alerts) {
-      if (alert.platform === 'twitter') {
-        accountCounts.set(alert.account, (accountCounts.get(alert.account) ?? 0) + 1);
-      }
-    }
-
-    return [...accountCounts.entries()].toSorted((a, b) => b[1] - a[1]).map(([account]) => account);
-  }
-
-  private schedulePoll(delayMs: number): void {
-    if (!this.isMonitoring) {
-      return;
-    }
-    this.pollTimer = setTimeout(() => {
-      this.pollAllAccounts().catch(console.error);
-    }, delayMs);
-  }
-
-  private async pollAllAccounts(): Promise<void> {
-    if (!this.isMonitoring) {
-      return;
-    }
-
-    const accounts = this.getUniqueAccountsSorted();
-
-    if (accounts.length === 0) {
-      this.schedulePoll(10_000);
-      return;
-    }
-
-    // Stagger polls: spread evenly across the interval, min 2s between each
-    const staggerMs = Math.max(
-      MIN_STAGGER_MS,
-      Math.floor(DEFAULT_POLL_INTERVAL_MS / accounts.length)
-    );
-
-    console.warn(`[SocialMonitor] Polling ${accounts.length} accounts (${staggerMs}ms stagger)...`);
-
-    for (const username of accounts) {
-      if (!this.isMonitoring) {
-        return;
-      }
-
-      // Skip if rate-limited for this account
-      if (rettiwtClient.isBackedOff(username)) {
-        console.warn(`[SocialMonitor] Skipping @${username} (rate-limited)`);
-        continue;
-      }
-
-      try {
-        const userId = await rettiwtClient.resolveUserId(username);
-        if (!userId) {
-          console.warn(`[SocialMonitor] Could not resolve @${username}, skipping`);
-          continue;
-        }
-
-        const tweets = await rettiwtClient.fetchUserTweets(userId, 10);
-        if (tweets.length > 0) {
-          const normalized = tweets.map((t) => normalizeRettiwtTweet(t));
-          await processTweets(normalized);
-        }
-      } catch (error) {
-        console.error(`[SocialMonitor] Error polling @${username}:`, error);
-      }
-
-      // Stagger: wait between accounts to avoid rate limiting
-      if (accounts.indexOf(username) < accounts.length - 1) {
-        await sleep(staggerMs);
-      }
-    }
-
-    this.schedulePoll(DEFAULT_POLL_INTERVAL_MS);
   }
 }
 
-export const socialMonitor = new SocialMonitor();
+// Single instance per process, survives Next.js dev HMR module reloads.
+const globalRef = globalThis as typeof globalThis & { __cryptosentrySocialMonitor?: SocialMonitor };
+export const socialMonitor: SocialMonitor =
+  globalRef.__cryptosentrySocialMonitor ??
+  (globalRef.__cryptosentrySocialMonitor = new SocialMonitor());

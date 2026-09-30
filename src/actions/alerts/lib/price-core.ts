@@ -6,6 +6,16 @@ import { priceAlertSchema, updatePriceAlertSchema } from '../schemas/price-alert
 import { checkAlertLimit } from '@/lib/config/plans';
 import type { z } from 'zod';
 import type { ActionState } from '@/types/actions';
+import type { Database } from '@/types/database';
+
+type PriceAlertUpdate = Database['public']['Tables']['price_alerts']['Update'];
+import { priceAlertWorker } from '@/lib/services/price/price-alert-worker';
+
+function refreshWorker(): void {
+  priceAlertWorker.refreshAlerts().catch((error) => {
+    console.error('Failed to refresh price worker:', error);
+  });
+}
 
 // --- Pure functions ---
 
@@ -22,10 +32,8 @@ function buildPriceAlertRow(userId: string, validated: z.infer<typeof priceAlert
   };
 }
 
-function buildUpdateData(
-  validated: z.infer<typeof updatePriceAlertSchema>
-): Record<string, unknown> {
-  const data: Record<string, unknown> = {};
+function buildUpdateData(validated: z.infer<typeof updatePriceAlertSchema>): PriceAlertUpdate {
+  const data: PriceAlertUpdate = {};
 
   if (validated.isActive !== undefined) {
     data.is_active = validated.isActive;
@@ -80,6 +88,7 @@ export async function createPriceAlert(
       throw error;
     }
 
+    refreshWorker();
     revalidatePath('/dashboard');
 
     return { success: true };
@@ -100,7 +109,7 @@ export async function updatePriceAlert(
       .from('price_alerts')
       .select('user_id')
       .eq('id', validated.id)
-      .single();
+      .maybeSingle();
 
     if (!existingAlert || existingAlert.user_id !== userId) {
       return { success: false, error: 'Alert not found' };
@@ -122,6 +131,7 @@ export async function updatePriceAlert(
       throw error;
     }
 
+    refreshWorker();
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error) {
@@ -138,7 +148,7 @@ export async function deletePriceAlert(alertId: string): Promise<ActionState> {
       .from('price_alerts')
       .select('user_id')
       .eq('id', alertId)
-      .single();
+      .maybeSingle();
 
     if (!existingAlert || existingAlert.user_id !== userId) {
       return { success: false, error: 'Alert not found' };
@@ -150,6 +160,7 @@ export async function deletePriceAlert(alertId: string): Promise<ActionState> {
       throw error;
     }
 
+    refreshWorker();
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error) {

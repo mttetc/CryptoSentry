@@ -38,7 +38,7 @@ export const getSocialAlertsWithStats = cache(async function getSocialAlertsWith
 
   const { data: allTriggers } = await supabase
     .from('alert_triggers')
-    .select('id, alert_id, data, triggered_at')
+    .select('id, alert_id, data, triggered_at, sentiment, summary')
     .in('alert_id', alertIds)
     .gte('triggered_at', cutoff)
     .order('triggered_at', { ascending: false });
@@ -69,6 +69,8 @@ export const getSocialAlertsWithStats = cache(async function getSocialAlertsWith
           retweets: d.engagement?.retweets ?? 0,
           replies: d.engagement?.replies ?? 0,
         },
+        sentiment: trigger.sentiment,
+        summary: trigger.summary,
       };
     });
 

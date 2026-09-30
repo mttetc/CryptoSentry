@@ -66,7 +66,7 @@ export type Database = {
       };
       alert_delivery_logs: {
         Row: {
-          alert_id: string;
+          alert_id: string | null;
           channel: string;
           created_at: string | null;
           data: Json | null;
@@ -251,213 +251,6 @@ export type Database = {
           },
         ];
       };
-      composite_alerts: {
-        Row: {
-          conditions: Json;
-          created_at: string | null;
-          id: string;
-          is_active: boolean | null;
-          last_evaluated_at: string | null;
-          name: string;
-          time_window_minutes: number;
-          updated_at: string | null;
-          user_id: string;
-        };
-        Insert: {
-          conditions: Json;
-          created_at?: string | null;
-          id?: string;
-          is_active?: boolean | null;
-          last_evaluated_at?: string | null;
-          name: string;
-          time_window_minutes?: number;
-          updated_at?: string | null;
-          user_id: string;
-        };
-        Update: {
-          conditions?: Json;
-          created_at?: string | null;
-          id?: string;
-          is_active?: boolean | null;
-          last_evaluated_at?: string | null;
-          name?: string;
-          time_window_minutes?: number;
-          updated_at?: string | null;
-          user_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'composite_alerts_user_id_fkey';
-            columns: ['user_id'];
-            isOneToOne: false;
-            referencedRelation: 'user';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      composite_condition_events: {
-        Row: {
-          composite_alert_id: string;
-          condition_index: number;
-          id: string;
-          occurred_at: string | null;
-          trigger_data: Json;
-        };
-        Insert: {
-          composite_alert_id: string;
-          condition_index: number;
-          id?: string;
-          occurred_at?: string | null;
-          trigger_data: Json;
-        };
-        Update: {
-          composite_alert_id?: string;
-          condition_index?: number;
-          id?: string;
-          occurred_at?: string | null;
-          trigger_data?: Json;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'composite_condition_events_composite_alert_id_fkey';
-            columns: ['composite_alert_id'];
-            isOneToOne: false;
-            referencedRelation: 'composite_alerts';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      conditional_rules: {
-        Row: {
-          config: Json;
-          created_at: string | null;
-          id: string;
-          is_active: boolean | null;
-          name: string;
-          rule_type: string;
-          time_window_minutes: number;
-          updated_at: string | null;
-          user_id: string;
-        };
-        Insert: {
-          config: Json;
-          created_at?: string | null;
-          id?: string;
-          is_active?: boolean | null;
-          name: string;
-          rule_type: string;
-          time_window_minutes?: number;
-          updated_at?: string | null;
-          user_id: string;
-        };
-        Update: {
-          config?: Json;
-          created_at?: string | null;
-          id?: string;
-          is_active?: boolean | null;
-          name?: string;
-          rule_type?: string;
-          time_window_minutes?: number;
-          updated_at?: string | null;
-          user_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'conditional_rules_user_id_fkey';
-            columns: ['user_id'];
-            isOneToOne: false;
-            referencedRelation: 'user';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      influencer_events: {
-        Row: {
-          account: string;
-          binance_symbol: string;
-          created_at: string | null;
-          id: string;
-          price_after_1h: number | null;
-          price_after_24h: number | null;
-          price_at_mention: number;
-          processed: boolean | null;
-          scored: boolean;
-          token_symbol: string;
-          tweet_id: string;
-        };
-        Insert: {
-          account: string;
-          binance_symbol?: string;
-          created_at?: string | null;
-          id?: string;
-          price_after_1h?: number | null;
-          price_after_24h?: number | null;
-          price_at_mention: number;
-          processed?: boolean | null;
-          scored?: boolean;
-          token_symbol: string;
-          tweet_id: string;
-        };
-        Update: {
-          account?: string;
-          binance_symbol?: string;
-          created_at?: string | null;
-          id?: string;
-          price_after_1h?: number | null;
-          price_after_24h?: number | null;
-          price_at_mention?: number;
-          processed?: boolean | null;
-          scored?: boolean;
-          token_symbol?: string;
-          tweet_id?: string;
-        };
-        Relationships: [];
-      };
-      influencer_scores: {
-        Row: {
-          account: string;
-          accuracy: number | null;
-          avg_price_change_1h: number | null;
-          avg_price_change_24h: number | null;
-          correct_calls: number | null;
-          id: string;
-          last_updated_at: string | null;
-          positive_calls: number | null;
-          sample_count: number | null;
-          token_symbol: string;
-          total_calls: number | null;
-          updated_at: string | null;
-        };
-        Insert: {
-          account: string;
-          accuracy?: number | null;
-          avg_price_change_1h?: number | null;
-          avg_price_change_24h?: number | null;
-          correct_calls?: number | null;
-          id?: string;
-          last_updated_at?: string | null;
-          positive_calls?: number | null;
-          sample_count?: number | null;
-          token_symbol: string;
-          total_calls?: number | null;
-          updated_at?: string | null;
-        };
-        Update: {
-          account?: string;
-          accuracy?: number | null;
-          avg_price_change_1h?: number | null;
-          avg_price_change_24h?: number | null;
-          correct_calls?: number | null;
-          id?: string;
-          last_updated_at?: string | null;
-          positive_calls?: number | null;
-          sample_count?: number | null;
-          token_symbol?: string;
-          total_calls?: number | null;
-          updated_at?: string | null;
-        };
-        Relationships: [];
-      };
       notification_channels: {
         Row: {
           alert_types: string[] | null;
@@ -596,6 +389,24 @@ export type Database = {
           },
         ];
       };
+      processed_tweets: {
+        Row: {
+          account: string;
+          processed_at: string;
+          tweet_id: string;
+        };
+        Insert: {
+          account: string;
+          processed_at?: string;
+          tweet_id: string;
+        };
+        Update: {
+          account?: string;
+          processed_at?: string;
+          tweet_id?: string;
+        };
+        Relationships: [];
+      };
       social_alerts: {
         Row: {
           account: string;
@@ -606,7 +417,7 @@ export type Database = {
           keywords: string[];
           platform: string;
           sentiment_filter: string | null;
-          telegram_conversation_id: string | null;
+          include_replies: boolean;
           updated_at: string | null;
           user_id: string;
         };
@@ -619,7 +430,7 @@ export type Database = {
           keywords: string[];
           platform?: string;
           sentiment_filter?: string | null;
-          telegram_conversation_id?: string | null;
+          include_replies?: boolean;
           updated_at?: string | null;
           user_id: string;
         };
@@ -632,7 +443,7 @@ export type Database = {
           keywords?: string[];
           platform?: string;
           sentiment_filter?: string | null;
-          telegram_conversation_id?: string | null;
+          include_replies?: boolean;
           updated_at?: string | null;
           user_id?: string;
         };
@@ -705,47 +516,6 @@ export type Database = {
           },
         ];
       };
-      user_portfolios: {
-        Row: {
-          amount: number;
-          avg_buy_price: number;
-          binance_symbol: string;
-          created_at: string;
-          id: string;
-          symbol: string;
-          updated_at: string | null;
-          user_id: string;
-        };
-        Insert: {
-          amount: number;
-          avg_buy_price: number;
-          binance_symbol: string;
-          created_at?: string;
-          id?: string;
-          symbol: string;
-          updated_at?: string | null;
-          user_id: string;
-        };
-        Update: {
-          amount?: number;
-          avg_buy_price?: number;
-          binance_symbol?: string;
-          created_at?: string;
-          id?: string;
-          symbol?: string;
-          updated_at?: string | null;
-          user_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'user_portfolios_user_id_fkey';
-            columns: ['user_id'];
-            isOneToOne: false;
-            referencedRelation: 'user';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
       user_telegram_settings: {
         Row: {
           created_at: string | null;
@@ -811,113 +581,35 @@ export type Database = {
         };
         Relationships: [];
       };
-      wallet_alerts: {
+      x_stream_usage: {
         Row: {
-          address: string;
-          chain: Database['public']['Enums']['chain_type'];
-          created_at: string;
-          id: string;
-          is_active: boolean;
-          label: string | null;
-          min_value_usd: number;
-          updated_at: string | null;
-          user_id: string;
+          delivered: number;
+          month: string;
+          updated_at: string;
         };
         Insert: {
-          address: string;
-          chain: Database['public']['Enums']['chain_type'];
-          created_at?: string;
-          id?: string;
-          is_active?: boolean;
-          label?: string | null;
-          min_value_usd?: number;
-          updated_at?: string | null;
-          user_id: string;
+          delivered?: number;
+          month: string;
+          updated_at?: string;
         };
         Update: {
-          address?: string;
-          chain?: Database['public']['Enums']['chain_type'];
-          created_at?: string;
-          id?: string;
-          is_active?: boolean;
-          label?: string | null;
-          min_value_usd?: number;
-          updated_at?: string | null;
-          user_id?: string;
+          delivered?: number;
+          month?: string;
+          updated_at?: string;
         };
-        Relationships: [
-          {
-            foreignKeyName: 'wallet_alerts_user_id_fkey';
-            columns: ['user_id'];
-            isOneToOne: false;
-            referencedRelation: 'user';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      wallet_triggers: {
-        Row: {
-          data: Json | null;
-          from_address: string;
-          id: string;
-          to_address: string;
-          token_symbol: string;
-          triggered_at: string | null;
-          tx_hash: string;
-          user_id: string;
-          value_usd: number;
-          wallet_alert_id: string;
-        };
-        Insert: {
-          data?: Json | null;
-          from_address: string;
-          id?: string;
-          to_address: string;
-          token_symbol: string;
-          triggered_at?: string | null;
-          tx_hash: string;
-          user_id: string;
-          value_usd: number;
-          wallet_alert_id: string;
-        };
-        Update: {
-          data?: Json | null;
-          from_address?: string;
-          id?: string;
-          to_address?: string;
-          token_symbol?: string;
-          triggered_at?: string | null;
-          tx_hash?: string;
-          user_id?: string;
-          value_usd?: number;
-          wallet_alert_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'wallet_triggers_user_id_fkey';
-            columns: ['user_id'];
-            isOneToOne: false;
-            referencedRelation: 'user';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'wallet_triggers_wallet_alert_id_fkey';
-            columns: ['wallet_alert_id'];
-            isOneToOne: false;
-            referencedRelation: 'wallet_alerts';
-            referencedColumns: ['id'];
-          },
-        ];
+        Relationships: [];
       };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      increment_x_stream_usage: {
+        Args: { p_month: string; p_count: number };
+        Returns: number;
+      };
     };
     Enums: {
-      chain_type: 'eth' | 'sol';
       price_direction: 'above' | 'below' | 'exact';
     };
     CompositeTypes: {
@@ -934,12 +626,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema['Tables'] & DefaultSchema['Views'])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -959,13 +651,12 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema['Tables']
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema['Tables'] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -984,13 +675,12 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema['Tables']
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema['Tables'] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -1009,13 +699,12 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema['Enums']
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    keyof DefaultSchema['Enums'] | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums']
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -1026,13 +715,12 @@ export type Enums<
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema['CompositeTypes']
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    keyof DefaultSchema['CompositeTypes'] | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes']
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -1044,7 +732,6 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      chain_type: ['eth', 'sol'],
       price_direction: ['above', 'below', 'exact'],
     },
   },

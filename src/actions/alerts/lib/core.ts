@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/api/auth';
 import { socialAlertSchema, updateSocialAlertSchema, type AlertState } from '../schemas';
 import { socialMonitor } from '@/lib/services/twitter/social-monitor';
-import { checkAlertLimit } from '@/lib/config/plans';
+import { checkSocialAlertLimits, getPlanLimits, getUserPlan } from '@/lib/config/plans';
 import type { z } from 'zod';
 
 // --- Pure functions ---
@@ -17,14 +17,19 @@ function buildSocialAlertRow(userId: string, validated: z.infer<typeof socialAle
     keywords: validated.keywords,
     call_enabled: validated.callEnabled,
     sentiment_filter: validated.sentimentFilter ?? null,
+    include_replies: validated.includeReplies,
     is_active: true,
   };
 }
 
-function buildUpdateData(
-  validated: z.infer<typeof updateSocialAlertSchema>
-): Record<string, unknown> {
-  const data: Record<string, unknown> = {};
+function buildUpdateData(validated: z.infer<typeof updateSocialAlertSchema>) {
+  const data: {
+    is_active?: boolean;
+    call_enabled?: boolean;
+    keywords?: string[];
+    sentiment_filter?: string | null;
+    include_replies?: boolean;
+  } = {};
 
   if (validated.isActive !== undefined) {
     data.is_active = validated.isActive;
@@ -38,6 +43,9 @@ function buildUpdateData(
   if (validated.sentimentFilter !== undefined) {
     data.sentiment_filter = validated.sentimentFilter;
   }
+  if (validated.includeReplies !== undefined) {
+    data.include_replies = validated.includeReplies;
+  }
   return data;
 }
 
@@ -48,6 +56,12 @@ function toActionError(error: unknown, fallback: string): AlertState {
   };
 }
 
+function refreshMonitor(): void {
+  socialMonitor.refreshAlerts().catch((error) => {
+    console.error('Failed to refresh social monitor:', error);
+  });
+}
+
 // --- Server actions ---
 
 export async function validateXAccount(account: string): Promise<{ exists: boolean }> {
@@ -55,7 +69,7 @@ export async function validateXAccount(account: string): Promise<{ exists: boole
 
   try {
     const res = await fetch(
-      `https://publish.twitter.com/oembed?url=https://x.com/${encodeURIComponent(account)}`
+      `https://publish.twitter.com/oembed?url=https://x.com/${encodeURIComponent(account.replace(/^@/, ''))}`
     );
     return { exists: res.ok };
   } catch {
@@ -70,28 +84,26 @@ export async function createSocialAlert(
     const { supabase, userId } = await requireAuth();
     const validated = socialAlertSchema.parse(input);
 
-    // Check plan limits before creating
-    const alertLimit = await checkAlertLimit(userId);
-    if (!alertLimit.allowed) {
-      return { success: false, error: alertLimit.error };
+    // Every plan limit here maps to a cost driver on the X stream.
+    const limits = await checkSocialAlertLimits(userId, {
+      account: validated.account,
+      keywords: validated.keywords,
+      includeReplies: validated.includeReplies,
+    });
+    if (!limits.allowed) {
+      return { success: false, error: limits.error };
     }
 
     const { error } = await supabase
       .from('social_alerts')
-      .insert(buildSocialAlertRow(userId, validated))
-      .select()
-      .single();
+      .insert(buildSocialAlertRow(userId, validated));
 
     if (error) {
       throw error;
     }
 
-    // Side effects: refresh monitor + revalidate cache (independent, parallel)
-    await Promise.allSettled([
-      socialMonitor.refreshAlerts(),
-      Promise.resolve(revalidatePath('/dashboard')),
-    ]);
-
+    refreshMonitor();
+    revalidatePath('/dashboard');
     return { success: true };
   } catch (error) {
     console.error('Failed to create social alert:', error);
@@ -100,7 +112,7 @@ export async function createSocialAlert(
 }
 
 export async function updateSocialAlert(
-  input: z.infer<typeof updateSocialAlertSchema>
+  input: z.input<typeof updateSocialAlertSchema>
 ): Promise<AlertState> {
   try {
     const { supabase, userId } = await requireAuth();
@@ -110,23 +122,40 @@ export async function updateSocialAlert(
       .from('social_alerts')
       .select('user_id')
       .eq('id', validated.id)
-      .single();
+      .maybeSingle();
 
     if (!existingAlert || existingAlert.user_id !== userId) {
       return { success: false, error: 'Alert not found' };
     }
 
+    if (validated.keywords || validated.includeReplies) {
+      const plan = getPlanLimits(await getUserPlan(userId));
+      if (validated.keywords && validated.keywords.length > plan.maxKeywordsPerAlert) {
+        return {
+          success: false,
+          error: `The ${plan.label} plan allows ${plan.maxKeywordsPerAlert} keywords per alert.`,
+        };
+      }
+      if (validated.includeReplies && !plan.allowReplies) {
+        return { success: false, error: 'Including replies and quotes requires the Premium plan.' };
+      }
+    }
+
+    const updateData = buildUpdateData(validated);
+    if (Object.keys(updateData).length === 0) {
+      return { success: true };
+    }
+
     const { error } = await supabase
       .from('social_alerts')
-      .update(buildUpdateData(validated))
-      .eq('id', validated.id)
-      .select()
-      .single();
+      .update(updateData)
+      .eq('id', validated.id);
 
     if (error) {
       throw error;
     }
 
+    refreshMonitor();
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error) {
@@ -143,7 +172,7 @@ export async function deleteSocialAlert(alertId: string): Promise<AlertState> {
       .from('social_alerts')
       .select('user_id')
       .eq('id', alertId)
-      .single();
+      .maybeSingle();
 
     if (!existingAlert || existingAlert.user_id !== userId) {
       return { success: false, error: 'Alert not found' };
@@ -155,6 +184,7 @@ export async function deleteSocialAlert(alertId: string): Promise<AlertState> {
       throw error;
     }
 
+    refreshMonitor();
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error) {

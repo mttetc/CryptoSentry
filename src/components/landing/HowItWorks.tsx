@@ -66,7 +66,7 @@ export default function HowItWorks() {
         <div className="relative">
           <m.div
             variants={drawLine}
-            className="absolute inset-x-0 top-0 h-px origin-left bg-white/[0.1]"
+            className="absolute inset-x-0 top-0 hidden h-px origin-left bg-white/[0.1] lg:block"
           />
           {!reduceMotion && (
             <>
@@ -98,19 +98,19 @@ export default function HowItWorks() {
               />
             </>
           )}
-          <div className="grid gap-x-10 gap-y-12 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-y-10 lg:grid-cols-4 lg:gap-x-10 lg:gap-y-12">
             {steps.map((step, i) => {
               const litAt = (TRAVEL_S * i) / LAST;
               return (
                 <m.div
                   key={step.title}
                   variants={fadeInUp}
-                  className="group relative flex flex-col gap-4 pt-8"
+                  className="group relative flex flex-col gap-4 border-l border-white/[0.1] pl-6 lg:border-l-0 lg:pt-8 lg:pl-0"
                 >
                   {step.accent ? (
                     <m.span
                       aria-hidden
-                      className="bg-primary absolute -top-[5px] left-0 h-[9px] w-[9px] rounded-full shadow-[0_0_0_4px_rgba(34,197,94,0.18)]"
+                      className="bg-primary absolute top-1 -left-[5px] h-[9px] w-[9px] rounded-full shadow-[0_0_0_4px_rgba(34,197,94,0.18)] lg:-top-[5px] lg:left-0"
                       animate={
                         reduceMotion
                           ? undefined
@@ -134,7 +134,7 @@ export default function HowItWorks() {
                   ) : (
                     <m.span
                       aria-hidden
-                      className="absolute -top-[5px] left-0 h-[9px] w-[9px] rounded-full"
+                      className="absolute top-1 -left-[5px] h-[9px] w-[9px] rounded-full lg:-top-[5px] lg:left-0"
                       style={{ backgroundColor: IDLE }}
                       animate={
                         reduceMotion

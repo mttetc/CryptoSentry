@@ -64,11 +64,68 @@ export default function PricingSection() {
           lede="Social alerts run on the official X API, billed per matched tweet. Quotas keep that predictable for you and for us."
         />
 
-        <m.div variants={fadeInUp}>
-          <Table className="min-w-[640px]">
+        {/* Phones: one stacked block per plan, same rows, no horizontal scroll */}
+        <m.div variants={fadeInUp} className="flex flex-col gap-10 md:hidden">
+          {PLAN_ORDER.map((planId) => {
+            const plan = PLANS[planId];
+            const highlighted = planId === HIGHLIGHTED;
+            return (
+              <div key={planId} className="flex flex-col gap-5">
+                <div className="flex items-end justify-between">
+                  <div className="flex flex-col gap-1.5">
+                    <span
+                      className={cn(
+                        'font-mono text-xs tracking-[0.08em] uppercase',
+                        highlighted ? 'text-primary' : 'text-ink-muted'
+                      )}
+                    >
+                      {plan.label}
+                      {highlighted && ' · most picked'}
+                    </span>
+                    <span className="flex items-baseline gap-1.5">
+                      <span className="font-display text-[36px] leading-none font-semibold tracking-[-0.03em]">
+                        {plan.priceEur}€
+                      </span>
+                      <span className="text-ink-muted text-sm">/month</span>
+                    </span>
+                  </div>
+                  <Button
+                    asChild
+                    size="sm"
+                    variant={highlighted ? 'default' : 'outline'}
+                    className={cn(highlighted && 'text-[#06110A]')}
+                  >
+                    <NextLink href="/auth?register=true">{CTA[planId]}</NextLink>
+                  </Button>
+                </div>
+                <dl className="m-0 flex flex-col font-mono text-[13px]">
+                  {ROWS.map((row) => {
+                    const accent = row.accent?.(plan) ?? false;
+                    return (
+                      <div
+                        key={row.label}
+                        className="flex items-center justify-between gap-4 border-t border-white/[0.08] py-2.5 last:border-b"
+                      >
+                        <dt className="text-ink-muted font-sans text-sm">{row.label}</dt>
+                        <dd className={cn('m-0', accent ? 'text-primary' : 'text-ink-soft')}>
+                          {row.value(plan)}
+                        </dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              </div>
+            );
+          })}
+        </m.div>
+
+        {/* Tablet and up: one comparison table */}
+        <m.div variants={fadeInUp} className="hidden md:block">
+          <Table className="min-w-[640px] table-fixed">
             <TableHeader>
               <TableRow className="border-white/[0.1] align-bottom hover:bg-transparent">
                 <TableHead className="w-[28%] pb-6" />
+                {/* table-fixed: the three plan columns share the remaining width equally */}
                 {PLAN_ORDER.map((planId) => {
                   const plan = PLANS[planId];
                   const highlighted = planId === HIGHLIGHTED;

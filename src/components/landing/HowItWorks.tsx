@@ -1,7 +1,7 @@
 'use client';
 
 import { m } from 'motion/react';
-import { fadeInUp, staggerContainer } from './animations';
+import { drawLine, fadeInUp, popDot, staggerContainer } from './animations';
 
 const steps = [
   {
@@ -57,28 +57,32 @@ export default function HowItWorks() {
           </p>
         </m.div>
 
-        {/* Timeline: one hairline, four columns, no boxes */}
+        {/* Timeline: one hairline that draws itself, four columns, no boxes */}
         <div className="relative">
-          <div className="absolute inset-x-0 top-0 h-px bg-white/[0.1]" />
+          <m.div
+            variants={drawLine}
+            className="absolute inset-x-0 top-0 h-px origin-left bg-white/[0.1]"
+          />
           <div className="grid gap-x-10 gap-y-12 md:grid-cols-2 lg:grid-cols-4">
             {steps.map((step, i) => (
               <m.div
                 key={step.title}
                 variants={fadeInUp}
-                className="relative flex flex-col gap-4 pt-8"
+                className="group relative flex flex-col gap-4 pt-8"
               >
-                <span
+                <m.span
+                  variants={popDot}
                   className={
                     step.accent
                       ? 'bg-primary absolute -top-[5px] left-0 h-[9px] w-[9px] rounded-full shadow-[0_0_0_4px_rgba(34,197,94,0.18)]'
-                      : 'absolute -top-[5px] left-0 h-[9px] w-[9px] rounded-full bg-[#3B4A43]'
+                      : 'group-hover:bg-primary absolute -top-[5px] left-0 h-[9px] w-[9px] rounded-full bg-[#3B4A43] transition-colors duration-300'
                   }
                 />
                 <span
                   className={
                     step.accent
                       ? 'text-primary font-mono text-xs'
-                      : 'text-ink-muted font-mono text-xs'
+                      : 'text-ink-muted group-hover:text-primary font-mono text-xs transition-colors duration-300'
                   }
                 >
                   {String(i + 1).padStart(2, '0')}

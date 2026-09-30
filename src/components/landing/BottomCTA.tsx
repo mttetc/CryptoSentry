@@ -3,7 +3,7 @@
 import NextLink from 'next/link';
 import { m } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
-import { fadeInUp } from './animations';
+import { fadeInUp, hoverLift } from './animations';
 import { Button } from '@/components/ui/button';
 
 export default function BottomCTA() {
@@ -30,12 +30,14 @@ export default function BottomCTA() {
           <span className="text-ink-muted">Let the tweet come to you.</span>
         </h2>
         <div className="flex flex-wrap items-center gap-5">
-          <Button asChild size="lg" className="h-13 gap-2.5 px-6 text-base text-[#06110A]">
-            <NextLink href="/auth?register=true">
-              Set up your first alert
-              <ArrowRight className="h-4 w-4" />
-            </NextLink>
-          </Button>
+          <m.div {...hoverLift}>
+            <Button asChild size="lg" className="group h-13 gap-2.5 px-6 text-base text-[#06110A]">
+              <NextLink href="/auth?register=true">
+                Set up your first alert
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </NextLink>
+            </Button>
+          </m.div>
           <span className="text-ink-muted font-mono text-xs">
             Free plan · no card · t.me/CryptoSentryBot
           </span>

@@ -2,7 +2,7 @@
 
 import NextLink from 'next/link';
 import { m } from 'motion/react';
-import { fadeInUp, staggerContainer } from './animations';
+import { fadeInUp, staggerContainer, staggerRows } from './animations';
 import { Button } from '@/components/ui/button';
 import { PLANS, PLAN_ORDER, type PlanId, type PlanLimits } from '@/lib/config/plan-limits';
 
@@ -92,9 +92,19 @@ export default function PricingSection() {
                 })}
               </tr>
             </thead>
-            <tbody className="font-mono text-[13px]">
+            <m.tbody
+              variants={staggerRows}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.2 }}
+              className="font-mono text-[13px]"
+            >
               {ROWS.map((row) => (
-                <tr key={row.label} className="border-b border-white/[0.08]">
+                <m.tr
+                  key={row.label}
+                  variants={fadeInUp}
+                  className="border-b border-white/[0.08] transition-colors duration-200 hover:bg-white/[0.02]"
+                >
                   <th
                     scope="row"
                     className="text-ink-muted py-3.5 pr-6 font-sans text-sm font-normal"
@@ -116,9 +126,9 @@ export default function PricingSection() {
                       </td>
                     );
                   })}
-                </tr>
+                </m.tr>
               ))}
-              <tr>
+              <m.tr variants={fadeInUp}>
                 <td className="pt-7" />
                 {PLAN_ORDER.map((planId) => (
                   <td key={planId} className="pt-7 pl-6">
@@ -131,8 +141,8 @@ export default function PricingSection() {
                     </Button>
                   </td>
                 ))}
-              </tr>
-            </tbody>
+              </m.tr>
+            </m.tbody>
           </table>
         </m.div>
       </m.div>

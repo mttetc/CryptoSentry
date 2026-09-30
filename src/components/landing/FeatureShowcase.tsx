@@ -1,7 +1,7 @@
 'use client';
 
 import { m } from 'motion/react';
-import { fadeInUp, staggerContainer } from './animations';
+import { fadeInUp, staggerRows } from './animations';
 
 const features = [
   {
@@ -40,14 +40,14 @@ const features = [
 export default function FeatureShowcase() {
   return (
     <section id="features" className="bg-ground-2 scroll-mt-20 border-y border-white/[0.08] py-24">
-      <m.div
-        variants={staggerContainer}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, amount: 0.15 }}
-        className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-12 lg:gap-8 lg:px-10"
-      >
-        <m.div variants={fadeInUp} className="flex flex-col gap-3.5 lg:col-span-4">
+      <div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-12 lg:gap-8 lg:px-10">
+        <m.div
+          variants={fadeInUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          className="flex flex-col gap-3.5 lg:col-span-4"
+        >
           <span className="text-primary font-mono text-xs tracking-[0.12em] uppercase">
             What is in the box
           </span>
@@ -57,17 +57,26 @@ export default function FeatureShowcase() {
         </m.div>
 
         {/* Spec sheet: hairline rows, index + title left, description right */}
-        <m.dl variants={fadeInUp} className="m-0 flex flex-col lg:col-span-8">
+        <m.dl
+          variants={staggerRows}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.15 }}
+          className="m-0 flex flex-col lg:col-span-8"
+        >
           {features.map((feature, i) => (
-            <div
+            <m.div
               key={feature.title}
-              className="grid gap-2 border-t border-white/[0.1] py-6 last:border-b md:grid-cols-12 md:gap-8"
+              variants={fadeInUp}
+              className="group grid gap-2 border-t border-white/[0.1] py-6 transition-colors duration-300 last:border-b hover:border-white/[0.22] md:grid-cols-12 md:gap-8"
             >
               <dt className="flex items-baseline gap-4 md:col-span-5">
-                <span className="text-ink-muted font-mono text-xs">
+                <span className="text-ink-muted group-hover:text-primary font-mono text-xs transition-colors duration-300">
                   {String(i + 1).padStart(2, '0')}
                 </span>
-                <span className="text-[17px] font-semibold">{feature.title}</span>
+                <span className="text-[17px] font-semibold transition-transform duration-300 group-hover:translate-x-1">
+                  {feature.title}
+                </span>
               </dt>
               <dd className="m-0 flex flex-col gap-2 md:col-span-7">
                 <p className="text-ink-muted m-0 text-sm leading-relaxed">{feature.desc}</p>
@@ -81,10 +90,10 @@ export default function FeatureShowcase() {
                   {feature.meta}
                 </span>
               </dd>
-            </div>
+            </m.div>
           ))}
         </m.dl>
-      </m.div>
+      </div>
     </section>
   );
 }

@@ -3,7 +3,7 @@
 import NextLink from 'next/link';
 import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
-import { fadeInUp, staggerContainer } from './animations';
+import { fadeInUp, revealUp, staggerContainer, hoverLift } from './animations';
 import HeroFeed from './HeroFeed';
 import { Button } from '@/components/ui/button';
 
@@ -25,18 +25,21 @@ export default function HeroSection() {
             variants={fadeInUp}
             className="text-primary inline-flex items-center gap-2.5 rounded-full border border-[rgba(34,197,94,0.35)] bg-[rgba(34,197,94,0.08)] py-1.5 pr-3 pl-2 font-mono text-xs"
           >
-            <span className="bg-primary h-2 w-2 rounded-full shadow-[0_0_0_4px_rgba(34,197,94,0.18)]" />
+            <span className="relative flex h-2 w-2">
+              <span className="bg-primary/60 animate-sentry-ping absolute inline-flex h-full w-full rounded-full" />
+              <span className="bg-primary relative inline-flex h-2 w-2 rounded-full" />
+            </span>
             Official X filtered stream · live
           </motion.div>
 
-          <motion.h1
-            variants={fadeInUp}
-            className="font-display text-[44px] leading-[0.98] font-semibold tracking-[-0.035em] md:text-[64px] lg:text-[72px]"
-          >
-            Get the tweet
-            <br />
-            before the candle.
-          </motion.h1>
+          <h1 className="font-display text-[44px] leading-[0.98] font-semibold tracking-[-0.035em] md:text-[64px] lg:text-[72px]">
+            <motion.span variants={revealUp} className="block">
+              Get the tweet
+            </motion.span>
+            <motion.span variants={revealUp} className="block">
+              before the candle.
+            </motion.span>
+          </h1>
 
           <motion.p variants={fadeInUp} className="text-ink-muted max-w-lg text-lg leading-relaxed">
             Pick the X accounts and keywords that move your bags. CryptoSentry streams every
@@ -45,19 +48,23 @@ export default function HeroSection() {
           </motion.p>
 
           <motion.div variants={fadeInUp} className="flex flex-wrap items-center gap-4">
-            <Button
-              asChild
-              size="lg"
-              className="h-13 gap-2.5 px-6 text-base text-[#06110A] shadow-[0_0_0_1px_rgba(34,197,94,0.4),0_12px_40px_rgba(34,197,94,0.25)]"
-            >
-              <NextLink href="/auth?register=true">
-                Set up your first alert
-                <ArrowRight className="h-4 w-4" />
-              </NextLink>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="h-13 px-5 text-[15px]">
-              <a href="#how">See how it works</a>
-            </Button>
+            <motion.div {...hoverLift}>
+              <Button
+                asChild
+                size="lg"
+                className="group h-13 gap-2.5 px-6 text-base text-[#06110A] shadow-[0_0_0_1px_rgba(34,197,94,0.4),0_12px_40px_rgba(34,197,94,0.25)] transition-shadow hover:shadow-[0_0_0_1px_rgba(34,197,94,0.6),0_16px_48px_rgba(34,197,94,0.35)]"
+              >
+                <NextLink href="/auth?register=true">
+                  Set up your first alert
+                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                </NextLink>
+              </Button>
+            </motion.div>
+            <motion.div {...hoverLift}>
+              <Button asChild size="lg" variant="outline" className="h-13 px-5 text-[15px]">
+                <a href="#how">See how it works</a>
+              </Button>
+            </motion.div>
           </motion.div>
 
           <motion.div
@@ -73,9 +80,10 @@ export default function HeroSection() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
+          initial={{ opacity: 0, y: 40, rotateX: 6 }}
+          animate={{ opacity: 1, y: 0, rotateX: 0 }}
+          transition={{ duration: 0.9, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          style={{ perspective: 1200 }}
           className="relative w-full lg:col-span-6"
         >
           <HeroFeed />

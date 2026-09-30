@@ -154,16 +154,22 @@ export default function HeroFeed() {
             <span className="ml-2">sentry · live feed</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="bg-primary h-1.5 w-1.5 rounded-full" />
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="bg-primary/60 animate-sentry-ping absolute inline-flex h-full w-full rounded-full" />
+              <span className="bg-primary relative inline-flex h-1.5 w-1.5 rounded-full" />
+            </span>
             connected · {RULES.length} rules
           </div>
         </div>
 
         {/* Rules */}
         <div className="flex flex-col gap-2 border-b border-white/[0.08] px-4 py-3.5">
-          {RULES.map((rule) => (
-            <div
+          {RULES.map((rule, i) => (
+            <motion.div
               key={rule.account}
+              initial={{ opacity: 0, x: -12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.9 + i * 0.25, ease: [0.22, 1, 0.36, 1] }}
               className="text-ink-soft inline-flex max-w-full items-center gap-2 self-start overflow-hidden rounded-md border border-white/[0.08] bg-white/[0.05] px-2.5 py-1.5 font-mono text-xs whitespace-nowrap"
             >
               <span className="text-ink-muted">rule</span>
@@ -177,7 +183,7 @@ export default function HeroFeed() {
                 ))}
                 ) {rule.suffix}
               </span>
-            </div>
+            </motion.div>
           ))}
         </div>
 

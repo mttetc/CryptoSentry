@@ -56,7 +56,9 @@
   --animate-fan: fan 1.6s ease-in-out infinite;
   --animate-blink: blink 1.1s steps(2, start) infinite;
   --animate-candle: candle 12s ease-out infinite;
-  --animate-brand-dot: brand-dot 7s ease-in-out infinite;
+  --animate-brand-dot:
+    brand-dot 7s ease-in-out infinite,
+    brand-dot-shape 2.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
 
   @keyframes stream {
     to {

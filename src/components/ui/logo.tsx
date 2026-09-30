@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { BrandDot } from './brand-dot';
 
-/** Wordmark only: display face, two weights, a living green pixel as the full stop. */
+/** Wordmark only: display face, two weights, a green full stop that bounces between square and circle. */
 function Wordmark({ className }: { className?: string }) {
   return (
     <span
@@ -13,7 +12,10 @@ function Wordmark({ className }: { className?: string }) {
     >
       <span className="font-medium">Crypto</span>
       <span className="font-bold">Sentry</span>
-      <BrandDot />
+      <span
+        aria-hidden
+        className="bg-primary animate-brand-dot ml-[3px] inline-block h-[0.28em] w-[0.28em] origin-center rounded-[1px] motion-reduce:animate-none"
+      />
     </span>
   );
 }

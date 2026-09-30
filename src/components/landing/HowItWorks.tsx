@@ -1,30 +1,25 @@
 'use client';
 
 import { m } from 'motion/react';
-import { Radio, Filter, Crosshair, Send } from 'lucide-react';
 import { fadeInUp, staggerContainer } from './animations';
 
 const steps = [
   {
-    icon: Radio,
     title: 'You pick accounts and keywords',
     desc: 'Any public X handle. Tokens, phrases, cashtags. Replies and quotes stay out unless you want them.',
     output: '@cryptogems · $sol, $pepe',
   },
   {
-    icon: Filter,
     title: 'We compile them into X rules',
     desc: 'One rule per account on the official filtered stream. X does the matching at the source.',
     output: 'from:cryptogems ($sol OR $pepe)',
   },
   {
-    icon: Crosshair,
     title: 'Matches are pushed and analysed',
     desc: 'Each post arrives once, gets a bullish, bearish or neutral read and a one-line summary.',
-    output: '● bullish · "rotation into SOL"',
+    output: 'bullish · "rotation into SOL"',
   },
   {
-    icon: Send,
     title: 'You get the alert. Seconds later.',
     desc: 'Telegram by default. Discord, email and SMS on paid plans. Tweet text, type, keywords, sentiment, link.',
     output: 'delivered · 1.4 s after the post',
@@ -40,7 +35,7 @@ export default function HowItWorks() {
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.2 }}
-        className="mx-auto flex max-w-6xl flex-col gap-12 px-6 lg:px-10"
+        className="mx-auto flex max-w-6xl flex-col gap-14 px-6 lg:px-10"
       >
         <m.div
           variants={fadeInUp}
@@ -62,61 +57,48 @@ export default function HowItWorks() {
           </p>
         </m.div>
 
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {steps.map((step, i) => {
-            const Icon = step.icon;
-            return (
+        {/* Timeline: one hairline, four columns, no boxes */}
+        <div className="relative">
+          <div className="absolute inset-x-0 top-0 h-px bg-white/[0.1]" />
+          <div className="grid gap-x-10 gap-y-12 md:grid-cols-2 lg:grid-cols-4">
+            {steps.map((step, i) => (
               <m.div
                 key={step.title}
                 variants={fadeInUp}
-                className={
-                  step.accent
-                    ? 'flex min-h-[260px] flex-col gap-4 rounded-2xl border border-[rgba(34,197,94,0.35)] bg-[linear-gradient(180deg,rgba(34,197,94,0.1),rgba(34,197,94,0.02))] p-6'
-                    : 'bg-surface flex min-h-[260px] flex-col gap-4 rounded-2xl border border-white/[0.1] p-6'
-                }
+                className="relative flex flex-col gap-4 pt-8"
               >
-                <div className="flex items-center justify-between">
-                  <div
-                    className={
-                      step.accent
-                        ? 'bg-primary flex h-10 w-10 items-center justify-center rounded-[10px] text-[#06110A]'
-                        : 'text-primary flex h-10 w-10 items-center justify-center rounded-[10px] bg-[rgba(34,197,94,0.12)]'
-                    }
-                  >
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <span
-                    className={
-                      step.accent
-                        ? 'text-primary font-mono text-xs'
-                        : 'text-ink-muted font-mono text-xs'
-                    }
-                  >
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                </div>
-                <h3 className="text-lg font-semibold">{step.title}</h3>
-                <p
+                <span
                   className={
                     step.accent
-                      ? 'text-ink-soft text-sm leading-relaxed'
-                      : 'text-ink-muted text-sm leading-relaxed'
+                      ? 'bg-primary absolute -top-[5px] left-0 h-[9px] w-[9px] rounded-full shadow-[0_0_0_4px_rgba(34,197,94,0.18)]'
+                      : 'absolute -top-[5px] left-0 h-[9px] w-[9px] rounded-full bg-[#3B4A43]'
+                  }
+                />
+                <span
+                  className={
+                    step.accent
+                      ? 'text-primary font-mono text-xs'
+                      : 'text-ink-muted font-mono text-xs'
                   }
                 >
-                  {step.desc}
-                </p>
-                <div
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <h3 className="font-display text-[22px] leading-tight font-semibold tracking-[-0.02em]">
+                  {step.title}
+                </h3>
+                <p className="text-ink-muted text-sm leading-relaxed">{step.desc}</p>
+                <code
                   className={
                     step.accent
-                      ? 'text-primary mt-auto rounded-md bg-[rgba(6,17,10,0.5)] px-2.5 py-2 font-mono text-xs'
-                      : 'text-ink-soft mt-auto rounded-md bg-white/[0.05] px-2.5 py-2 font-mono text-xs'
+                      ? 'text-primary mt-auto font-mono text-xs'
+                      : 'text-ink-soft mt-auto font-mono text-xs'
                   }
                 >
                   {step.output}
-                </div>
+                </code>
               </m.div>
-            );
-          })}
+            ))}
+          </div>
         </div>
       </m.div>
     </section>

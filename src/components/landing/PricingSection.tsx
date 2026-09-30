@@ -4,27 +4,30 @@ import NextLink from 'next/link';
 import { m } from 'motion/react';
 import { fadeInUp, staggerContainer } from './animations';
 import { Button } from '@/components/ui/button';
-import { PLANS, PLAN_ORDER, type PlanId } from '@/lib/config/plan-limits';
+import { PLANS, PLAN_ORDER, type PlanId, type PlanLimits } from '@/lib/config/plan-limits';
 
-function rows(planId: PlanId): { label: string; value: string; accent?: boolean }[] {
-  const p = PLANS[planId];
-  const list: { label: string; value: string; accent?: boolean }[] = [
-    { label: 'alerts', value: String(p.maxAlerts) },
-    { label: 'X accounts', value: String(p.maxWatchedAccounts) },
-    { label: 'keywords / alert', value: String(p.maxKeywordsPerAlert) },
-    { label: 'matched tweets / mo', value: p.monthlyTweetQuota.toLocaleString('en-US') },
-    { label: 'channels', value: p.channels.length === 1 ? 'Telegram' : 'all four' },
-  ];
-  if (p.allowReplies || p.hasApi) {
-    list.push({ label: 'replies, quotes, API', value: 'included', accent: true });
-  }
-  return list;
-}
+const ROWS: {
+  label: string;
+  value: (p: PlanLimits) => string;
+  accent?: (p: PlanLimits) => boolean;
+}[] = [
+  { label: 'Alerts (social + price)', value: (p) => String(p.maxAlerts) },
+  { label: 'X accounts watched', value: (p) => String(p.maxWatchedAccounts) },
+  { label: 'Keywords per alert', value: (p) => String(p.maxKeywordsPerAlert) },
+  { label: 'Matched tweets per month', value: (p) => p.monthlyTweetQuota.toLocaleString('en-US') },
+  {
+    label: 'Replies and quotes',
+    value: (p) => (p.allowReplies ? 'included' : 'no'),
+    accent: (p) => p.allowReplies,
+  },
+  { label: 'Channels', value: (p) => (p.channels.length === 1 ? 'Telegram' : 'all four') },
+  { label: 'REST API', value: (p) => (p.hasApi ? 'included' : 'no'), accent: (p) => p.hasApi },
+];
 
-const CTA: Record<PlanId, { label: string; href: string }> = {
-  free: { label: 'Get started', href: '/auth?register=true' },
-  pro: { label: 'Coming soon', href: '/auth?register=true' },
-  premium: { label: 'Coming soon', href: '/auth?register=true' },
+const CTA: Record<PlanId, string> = {
+  free: 'Get started',
+  pro: 'Coming soon',
+  premium: 'Coming soon',
 };
 
 export default function PricingSection() {
@@ -35,7 +38,7 @@ export default function PricingSection() {
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.15 }}
-        className="mx-auto flex max-w-6xl flex-col gap-11 px-6 lg:px-10"
+        className="mx-auto flex max-w-6xl flex-col gap-12 px-6 lg:px-10"
       >
         <m.div
           variants={fadeInUp}
@@ -55,66 +58,83 @@ export default function PricingSection() {
           </p>
         </m.div>
 
-        <div className="grid items-stretch gap-5 md:grid-cols-3">
-          {PLAN_ORDER.map((planId) => {
-            const plan = PLANS[planId];
-            const highlighted = planId === 'pro';
-            return (
-              <m.div
-                key={planId}
-                variants={fadeInUp}
-                className={
-                  highlighted
-                    ? 'relative flex flex-col gap-5 rounded-2xl border border-[rgba(34,197,94,0.45)] bg-[linear-gradient(180deg,#14201B_0%,#121918_100%)] p-7 shadow-[0_30px_80px_rgba(34,197,94,0.12)] md:-translate-y-4'
-                    : 'bg-surface relative flex flex-col gap-5 rounded-2xl border border-white/[0.1] p-7'
-                }
-              >
-                {highlighted && (
-                  <span className="bg-primary absolute -top-3 left-7 rounded-full px-2.5 py-1 font-mono text-[11px] font-semibold tracking-[0.06em] text-[#06110A]">
-                    MOST PICKED
-                  </span>
-                )}
-                <div className="flex flex-col gap-1.5">
-                  <span className={highlighted ? 'text-primary text-sm' : 'text-ink-muted text-sm'}>
-                    {plan.label}
-                  </span>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="font-display text-[44px] font-semibold tracking-[-0.03em]">
-                      {plan.priceEur}€
-                    </span>
-                    <span className="text-ink-muted text-sm">/month</span>
-                  </div>
-                </div>
-
-                <div
-                  className={
-                    highlighted
-                      ? 'flex flex-col font-mono text-[13px]'
-                      : 'text-ink-soft flex flex-col font-mono text-[13px]'
-                  }
-                >
-                  {rows(planId).map((row) => (
-                    <div
-                      key={row.label}
-                      className="flex justify-between border-t border-white/[0.08] py-2.5 last:border-b"
+        {/* One comparison table, hairlines only */}
+        <m.div variants={fadeInUp} className="-mx-6 overflow-x-auto px-6 lg:mx-0 lg:px-0">
+          <table className="w-full min-w-[640px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-white/[0.1] align-bottom">
+                <th scope="col" className="w-[28%] pb-6 font-normal" />
+                {PLAN_ORDER.map((planId) => {
+                  const plan = PLANS[planId];
+                  const highlighted = planId === 'pro';
+                  return (
+                    <th key={planId} scope="col" className="pb-6 pl-6 font-normal">
+                      <div className="flex flex-col gap-2">
+                        <span
+                          className={
+                            highlighted
+                              ? 'text-primary font-mono text-xs tracking-[0.08em] uppercase'
+                              : 'text-ink-muted font-mono text-xs tracking-[0.08em] uppercase'
+                          }
+                        >
+                          {plan.label}
+                          {highlighted && ' · most picked'}
+                        </span>
+                        <span className="flex items-baseline gap-1.5">
+                          <span className="font-display text-[40px] leading-none font-semibold tracking-[-0.03em]">
+                            {plan.priceEur}€
+                          </span>
+                          <span className="text-ink-muted text-sm">/month</span>
+                        </span>
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody className="font-mono text-[13px]">
+              {ROWS.map((row) => (
+                <tr key={row.label} className="border-b border-white/[0.08]">
+                  <th
+                    scope="row"
+                    className="text-ink-muted py-3.5 pr-6 font-sans text-sm font-normal"
+                  >
+                    {row.label}
+                  </th>
+                  {PLAN_ORDER.map((planId) => {
+                    const plan = PLANS[planId];
+                    const accent = row.accent?.(plan) ?? false;
+                    let tone = 'text-ink-soft';
+                    if (accent) {
+                      tone = 'text-primary';
+                    } else if (planId === 'pro') {
+                      tone = 'text-foreground';
+                    }
+                    return (
+                      <td key={planId} className={`${tone} py-3.5 pl-6`}>
+                        {row.value(plan)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              <tr>
+                <td className="pt-7" />
+                {PLAN_ORDER.map((planId) => (
+                  <td key={planId} className="pt-7 pl-6">
+                    <Button
+                      asChild
+                      variant={planId === 'pro' ? 'default' : 'outline'}
+                      className={planId === 'pro' ? 'h-11 w-full text-[#06110A]' : 'h-11 w-full'}
                     >
-                      <span className="text-ink-muted">{row.label}</span>
-                      <span className={row.accent ? 'text-primary' : undefined}>{row.value}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <Button
-                  asChild
-                  variant={highlighted ? 'default' : 'outline'}
-                  className={highlighted ? 'mt-auto h-11 text-[#06110A]' : 'mt-auto h-11'}
-                >
-                  <NextLink href={CTA[planId].href}>{CTA[planId].label}</NextLink>
-                </Button>
-              </m.div>
-            );
-          })}
-        </div>
+                      <NextLink href="/auth?register=true">{CTA[planId]}</NextLink>
+                    </Button>
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </m.div>
       </m.div>
     </section>
   );

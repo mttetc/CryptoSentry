@@ -5,7 +5,7 @@ import { fadeInUp } from './animations';
 
 const facts = [
   'Official X API, no scraping',
-  'Push delivery, seconds after the post',
+  'Push delivery in seconds',
   'Telegram, Discord, email, SMS',
   'Binance prices over WebSocket',
 ];

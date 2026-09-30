@@ -1,47 +1,76 @@
-'use server';
-
-import { sendTelegramVoiceCallSimple } from './voice-calls';
+import { sendTelegramMessage, getTelegramUser } from './telegram-utils';
 import type { AlertNotification } from '@/types/notifications';
 
-// --- Pure function ---
+// --- Pure functions ---
 
-function formatNotificationMessage(notification: AlertNotification): string {
+/** Telegram parse_mode=HTML: tweet text must be escaped or messages containing "<" fail. */
+export function escapeHtml(text: string): string {
+  return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+const SENTIMENT_ICON: Record<string, string> = {
+  bullish: '🟢',
+  bearish: '🔴',
+  neutral: '⚪️',
+};
+
+export function formatTelegramMessage(notification: AlertNotification): string {
+  const d = notification.data;
+
   if (notification.alertType === 'price') {
-    return `Price Alert: ${notification.data.symbol} is now $${notification.data.price}`;
+    return [
+      `<b>Price alert</b> · ${escapeHtml(String(d.symbol ?? '').toUpperCase())}`,
+      escapeHtml(notification.message),
+    ].join('\n');
   }
 
-  const keywords = Array.isArray(notification.data.keywords)
-    ? notification.data.keywords.join(', ')
-    : '';
-  const base = `Social Alert: ${notification.data.account} mentioned your keywords: ${keywords}`;
+  const lines: string[] = [];
+  const typeLabel = d.tweet_type && d.tweet_type !== 'original' ? ` (${d.tweet_type})` : '';
+  lines.push(`<b>@${escapeHtml(d.account ?? '')}</b>${typeLabel}`);
 
-  if (notification.data.tweet_url) {
-    return `${base}\nTweet: ${notification.data.tweet_url}`;
+  if (d.content) {
+    lines.push(escapeHtml(d.content.length > 500 ? `${d.content.slice(0, 497)}...` : d.content));
   }
 
-  return base;
+  const details: string[] = [];
+  if (d.keywords && d.keywords.length > 0) {
+    details.push(`Keywords: ${escapeHtml(d.keywords.join(', '))}`);
+  }
+  if (d.sentiment && d.sentiment !== 'neutral') {
+    details.push(`${SENTIMENT_ICON[d.sentiment] ?? ''} ${escapeHtml(d.sentiment)}`.trim());
+  }
+  if (d.summary) {
+    details.push(`<i>${escapeHtml(d.summary)}</i>`);
+  }
+  if (details.length > 0) {
+    lines.push('', ...details);
+  }
+
+  if (d.tweet_url) {
+    lines.push('', `<a href="${escapeHtml(d.tweet_url)}">Open on X</a>`);
+  }
+
+  return lines.join('\n');
 }
 
 // --- I/O orchestrator ---
 
 export async function sendTelegramAlert(notification: AlertNotification): Promise<boolean> {
   try {
-    const formattedMessage = formatNotificationMessage(notification);
-
-    const result = await sendTelegramVoiceCallSimple({
-      userId: notification.userId,
-      message: formattedMessage,
-      priority: 'high',
-    });
-
-    if (!result.success) {
-      console.error(
-        `Failed to send Telegram voice alert to user ${notification.userId}:`,
-        result.error
-      );
+    const telegramUser = await getTelegramUser(notification.userId);
+    if (!telegramUser) {
+      console.error(`Telegram not linked for user ${notification.userId}`);
+      return false;
     }
 
-    return result.success;
+    const sent = await sendTelegramMessage(
+      telegramUser.telegram_chat_id,
+      formatTelegramMessage(notification)
+    );
+    if (!sent) {
+      console.error(`Failed to send Telegram alert to user ${notification.userId}`);
+    }
+    return sent;
   } catch (error) {
     console.error('Error sending Telegram alert:', error);
     return false;

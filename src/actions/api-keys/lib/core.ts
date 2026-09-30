@@ -87,9 +87,7 @@ export async function createApiKey(
   }
 }
 
-export async function revokeApiKey(
-  id: string
-): Promise<{ success: boolean; error?: string }> {
+export async function revokeApiKey(id: string): Promise<{ success: boolean; error?: string }> {
   try {
     const { supabase, userId } = await requireAuth();
 
@@ -103,10 +101,7 @@ export async function revokeApiKey(
       return { success: false, error: 'API key not found' };
     }
 
-    const { error } = await supabase
-      .from('api_keys')
-      .update({ is_active: false })
-      .eq('id', id);
+    const { error } = await supabase.from('api_keys').update({ is_active: false }).eq('id', id);
 
     if (error) {
       throw error;
@@ -133,17 +128,15 @@ export async function listApiKeys(): Promise<ListKeysSuccess | ListKeysError> {
       throw error;
     }
 
-    const keys: ApiKeyListItem[] = (data ?? []).map(
-      (row: Record<string, unknown>) => ({
-        id: String(row.id),
-        prefix: String(row.key_prefix),
-        name: String(row.name),
-        scopes: row.scopes as string[],
-        last_used_at: row.last_used_at as string | null,
-        created_at: String(row.created_at),
-        is_active: Boolean(row.is_active),
-      })
-    );
+    const keys: ApiKeyListItem[] = (data ?? []).map((row: Record<string, unknown>) => ({
+      id: String(row.id),
+      prefix: String(row.key_prefix),
+      name: String(row.name),
+      scopes: row.scopes as string[],
+      last_used_at: row.last_used_at as string | null,
+      created_at: String(row.created_at),
+      is_active: Boolean(row.is_active),
+    }));
 
     return { success: true, keys };
   } catch (error) {

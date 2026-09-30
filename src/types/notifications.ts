@@ -1,37 +1,25 @@
-export type AlertType = 'social' | 'price' | 'whale' | 'composite';
+export type AlertType = 'social' | 'price';
 export type ChannelType = 'telegram' | 'email' | 'discord' | 'sms';
 
 export interface AlertNotification {
   userId: string;
   alertType: AlertType;
-  alertId?: string;
+  alertId: string;
   message: string;
   data: {
+    // Price
     symbol?: string;
     price?: number;
+    targetPrice?: number;
+    condition?: string;
+    // Social
     account?: string;
     keywords?: string[];
     tweet_url?: string;
+    tweet_type?: string;
     content?: string;
-    condition?: string;
-    targetPrice?: number;
     sentiment?: string;
     summary?: string;
-    // Whale data
-    tx_hash?: string;
-    from_address?: string;
-    to_address?: string;
-    value_usd?: number;
-    token_symbol?: string;
-    chain?: string;
-    // Portfolio impact
-    portfolio_impact?: {
-      position_amount: number;
-      cost_basis: number;
-      current_value: number;
-      impact_usd: number;
-      impact_percent: number;
-    };
   };
 }
 

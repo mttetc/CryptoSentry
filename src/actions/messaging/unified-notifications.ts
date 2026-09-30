@@ -6,6 +6,7 @@ import { sendDiscordAlert } from '@/actions/messaging/providers/discord';
 import { sendSmsAlert } from '@/actions/messaging/providers/sms';
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
 import type { AlertNotification, ChannelResult, NotificationResult } from '@/types/notifications';
+import type { Database } from '@/types/database';
 
 // --- Pure functions ---
 
@@ -25,8 +26,6 @@ function buildNotificationResult(
   return { channels: channelResults, overallSuccess };
 }
 
-import type { Database } from '@/types/database';
-
 type DeliveryLogInsert = Database['public']['Tables']['alert_delivery_logs']['Insert'];
 
 function buildDeliveryLogEntry(
@@ -35,7 +34,7 @@ function buildDeliveryLogEntry(
   result: ChannelResult
 ): DeliveryLogInsert {
   return {
-    alert_id: notification.alertId ?? notification.userId,
+    alert_id: notification.alertId,
     user_id: notification.userId,
     type: notification.alertType,
     channel,
@@ -57,7 +56,7 @@ async function checkTelegramConnected(userId: string): Promise<boolean> {
     .select('status')
     .eq('user_id', userId)
     .eq('status', 'connected')
-    .single();
+    .maybeSingle();
 
   return data?.status === 'connected';
 }

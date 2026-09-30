@@ -3,16 +3,11 @@ import type { AlertNotification } from '@/types/notifications';
 // --- Pure functions ---
 
 // Decimal color values for Discord embeds
-const EMBED_COLOR_GREEN = 0x22_C5_5E;
-const EMBED_COLOR_RED = 0xEF_44_44;
-const EMBED_COLOR_BLUE = 0x3B_82_F6;
-const EMBED_COLOR_PURPLE = 0xA8_55_F7;
+const EMBED_COLOR_GREEN = 2_278_750; // #22C55E
+const EMBED_COLOR_RED = 15_680_580; // #EF4444
+const EMBED_COLOR_BLUE = 3_901_174; // #3B82F6
 
 function resolveEmbedColor(notification: AlertNotification): number {
-  if (notification.alertType === 'whale') {
-    return EMBED_COLOR_PURPLE;
-  }
-
   const condition = notification.data.condition?.toLowerCase() ?? '';
 
   if (condition.includes('above') || condition.includes('bullish')) {
@@ -32,12 +27,6 @@ function formatAlertTitle(notification: AlertNotification): string {
     }
     case 'social': {
       return 'Social Alert';
-    }
-    case 'whale': {
-      return 'Whale Alert';
-    }
-    case 'composite': {
-      return 'Composite Alert';
     }
   }
 }
@@ -68,18 +57,6 @@ function buildEmbedFields(notification: AlertNotification): DiscordEmbedField[] 
   }
   if (notification.data.tweet_url) {
     fields.push({ name: 'Tweet', value: `[View](${notification.data.tweet_url})`, inline: false });
-  }
-  if (notification.data.token_symbol) {
-    fields.push({ name: 'Token', value: notification.data.token_symbol, inline: true });
-  }
-  if (notification.data.value_usd !== undefined) {
-    fields.push({ name: 'Value', value: `$${notification.data.value_usd.toLocaleString()}`, inline: true });
-  }
-  if (notification.data.chain) {
-    fields.push({ name: 'Chain', value: notification.data.chain, inline: true });
-  }
-  if (notification.data.tx_hash) {
-    fields.push({ name: 'TX Hash', value: `\`${notification.data.tx_hash}\``, inline: false });
   }
 
   return fields;

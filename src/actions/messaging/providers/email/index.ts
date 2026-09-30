@@ -17,16 +17,6 @@ function formatSubject(notification: AlertNotification): string {
         ? `Social Alert: @${account} mentioned ${keywords}`
         : `Social Alert: @${account} triggered your alert`;
     }
-    case 'whale': {
-      const tokenSymbol = notification.data.token_symbol ?? 'Unknown';
-      const valueUsd = notification.data.value_usd === undefined
-        ? 'large amount'
-        : `$${notification.data.value_usd.toLocaleString()}`;
-      return `Whale Alert: ${valueUsd} ${tokenSymbol} transfer detected`;
-    }
-    case 'composite': {
-      return `Composite Alert: Multiple signals detected`;
-    }
   }
 }
 
@@ -45,30 +35,30 @@ function formatHtml(notification: AlertNotification): string {
   const detailRows: string[] = [];
 
   if (notification.data.symbol) {
-    detailRows.push(`<tr><td style="padding:4px 8px;color:#666;">Symbol</td><td style="padding:4px 8px;font-weight:600;">${escapeHtml(notification.data.symbol)}</td></tr>`);
+    detailRows.push(
+      `<tr><td style="padding:4px 8px;color:#666;">Symbol</td><td style="padding:4px 8px;font-weight:600;">${escapeHtml(notification.data.symbol)}</td></tr>`
+    );
   }
   if (notification.data.price !== undefined) {
-    detailRows.push(`<tr><td style="padding:4px 8px;color:#666;">Price</td><td style="padding:4px 8px;font-weight:600;">$${notification.data.price}</td></tr>`);
+    detailRows.push(
+      `<tr><td style="padding:4px 8px;color:#666;">Price</td><td style="padding:4px 8px;font-weight:600;">$${notification.data.price}</td></tr>`
+    );
   }
   if (notification.data.account) {
-    detailRows.push(`<tr><td style="padding:4px 8px;color:#666;">Account</td><td style="padding:4px 8px;font-weight:600;">@${escapeHtml(notification.data.account)}</td></tr>`);
+    detailRows.push(
+      `<tr><td style="padding:4px 8px;color:#666;">Account</td><td style="padding:4px 8px;font-weight:600;">@${escapeHtml(notification.data.account)}</td></tr>`
+    );
   }
   if (notification.data.tweet_url) {
-    detailRows.push(`<tr><td style="padding:4px 8px;color:#666;">Tweet</td><td style="padding:4px 8px;"><a href="${escapeHtml(notification.data.tweet_url)}" style="color:#2563eb;">View Tweet</a></td></tr>`);
-  }
-  if (notification.data.tx_hash) {
-    detailRows.push(`<tr><td style="padding:4px 8px;color:#666;">TX Hash</td><td style="padding:4px 8px;font-family:monospace;font-size:12px;">${escapeHtml(notification.data.tx_hash)}</td></tr>`);
-  }
-  if (notification.data.value_usd !== undefined) {
-    detailRows.push(`<tr><td style="padding:4px 8px;color:#666;">Value</td><td style="padding:4px 8px;font-weight:600;">$${notification.data.value_usd.toLocaleString()}</td></tr>`);
-  }
-  if (notification.data.chain) {
-    detailRows.push(`<tr><td style="padding:4px 8px;color:#666;">Chain</td><td style="padding:4px 8px;">${escapeHtml(notification.data.chain)}</td></tr>`);
+    detailRows.push(
+      `<tr><td style="padding:4px 8px;color:#666;">Tweet</td><td style="padding:4px 8px;"><a href="${escapeHtml(notification.data.tweet_url)}" style="color:#2563eb;">View Tweet</a></td></tr>`
+    );
   }
 
-  const detailsTable = detailRows.length > 0
-    ? `<table style="width:100%;border-collapse:collapse;margin:16px 0;">${detailRows.join('')}</table>`
-    : '';
+  const detailsTable =
+    detailRows.length > 0
+      ? `<table style="width:100%;border-collapse:collapse;margin:16px 0;">${detailRows.join('')}</table>`
+      : '';
 
   return `
 <!DOCTYPE html>

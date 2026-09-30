@@ -15,12 +15,12 @@ export const smsChannelConfigSchema = z.object({
 export const addChannelSchema = z.object({
   channelType: z.enum(['email', 'discord', 'sms']),
   config: z.record(z.string(), z.unknown()),
-  alertTypes: z.array(z.enum(['social', 'price', 'whale', 'composite'])).optional(),
+  alertTypes: z.array(z.enum(['social', 'price'])).optional(),
 });
 
 export const updateChannelSchema = z.object({
   id: z.string().uuid(),
   isActive: z.boolean().optional(),
   config: z.record(z.string(), z.unknown()).optional(),
-  alertTypes: z.array(z.enum(['social', 'price', 'whale', 'composite'])).optional(),
+  alertTypes: z.array(z.enum(['social', 'price'])).optional(),
 });

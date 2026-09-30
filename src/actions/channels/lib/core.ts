@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/api/auth';
 import type { ActionState } from '@/types/actions';
-import type { Json } from '@/types/database';
+import type { Database, Json } from '@/types/database';
+
+type ChannelUpdate = Database['public']['Tables']['notification_channels']['Update'];
 import type { z } from 'zod';
 import {
   addChannelSchema,
@@ -56,19 +58,19 @@ function buildChannelRow(
     user_id: userId,
     channel_type: validated.channelType,
     config: validatedConfig,
-    alert_types: validated.alertTypes ?? ['social', 'price', 'whale', 'composite'],
+    alert_types: validated.alertTypes ?? ['social', 'price'],
     is_active: true,
   };
 }
 
-function buildUpdateData(validated: z.infer<typeof updateChannelSchema>): Record<string, unknown> {
-  const data: Record<string, unknown> = {};
+function buildUpdateData(validated: z.infer<typeof updateChannelSchema>): ChannelUpdate {
+  const data: ChannelUpdate = {};
 
   if (validated.isActive !== undefined) {
     data.is_active = validated.isActive;
   }
   if (validated.config !== undefined) {
-    data.config = validated.config;
+    data.config = validated.config as Json;
   }
   if (validated.alertTypes !== undefined) {
     data.alert_types = validated.alertTypes;

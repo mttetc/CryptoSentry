@@ -24,16 +24,6 @@ function formatSmsBody(notification: AlertNotification): string {
       const keywords = notification.data.keywords?.join(', ') ?? '';
       return truncateMessage(`[CryptoSentry] @${account} mentioned: ${keywords}`);
     }
-    case 'whale': {
-      const token = notification.data.token_symbol ?? '?';
-      const value = notification.data.value_usd === undefined
-        ? 'large'
-        : `$${notification.data.value_usd.toLocaleString()}`;
-      return truncateMessage(`[CryptoSentry] Whale: ${value} ${token} transfer on ${notification.data.chain ?? 'unknown'}`);
-    }
-    case 'composite': {
-      return truncateMessage(`[CryptoSentry] ${notification.message}`);
-    }
   }
 }
 

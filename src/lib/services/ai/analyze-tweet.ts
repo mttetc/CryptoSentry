@@ -87,11 +87,7 @@ export async function analyzeTweet(tweetText: string): Promise<TweetAnalysis> {
       const choices = (data as Record<string, unknown>).choices as unknown[];
       const firstChoice = choices[0];
 
-      if (
-        typeof firstChoice === 'object' &&
-        firstChoice !== null &&
-        'message' in firstChoice
-      ) {
+      if (typeof firstChoice === 'object' && firstChoice !== null && 'message' in firstChoice) {
         const message = (firstChoice as Record<string, unknown>).message;
 
         if (typeof message === 'object' && message !== null && 'content' in message) {

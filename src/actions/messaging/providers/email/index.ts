@@ -1,4 +1,5 @@
 import type { AlertNotification } from '@/types/notifications';
+import { escapeHtml } from '@/actions/messaging/utils/escape-html';
 
 // --- Pure functions ---
 
@@ -18,14 +19,6 @@ function formatSubject(notification: AlertNotification): string {
         : `Social Alert: @${account} triggered your alert`;
     }
   }
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
 }
 
 function formatHtml(notification: AlertNotification): string {

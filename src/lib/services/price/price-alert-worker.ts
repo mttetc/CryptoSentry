@@ -47,29 +47,33 @@ export interface PriceTriggeredEvent {
 // --- Pure functions ---
 
 /**
- * Above/below fire on the crossing when we have a previous price. On the very first observation
- * (no previous price) a non-recurring alert fires if the condition already holds; a recurring one
- * waits for a real crossing so it never spams while the price sits beyond the target.
+ * Semantics, independent of process lifetime:
+ * - The FIRST time the worker evaluates a given alert, a one-shot above/below alert fires if
+ *   the condition already holds ("notify me when BTC is above 100k" while it already is).
+ * - After that, every alert fires only on a crossing of the target, so a recurring alert never
+ *   spams while the price sits beyond the target, whether or not the server restarted.
+ * - `exact` is a crossing in either direction and never fires on the first evaluation.
  */
 export function shouldTriggerAlert(
   alert: Pick<PriceAlertRow, 'direction' | 'target_price' | 'recurring'>,
   currentPrice: number,
-  previousPrice: number | null
+  previousPrice: number | null,
+  firstEvaluation: boolean
 ): boolean {
   const target = alert.target_price;
 
   switch (alert.direction) {
     case 'above': {
-      if (previousPrice === null) {
-        return !alert.recurring && currentPrice >= target;
+      if (firstEvaluation && !alert.recurring) {
+        return currentPrice >= target;
       }
-      return previousPrice < target && currentPrice >= target;
+      return previousPrice !== null && previousPrice < target && currentPrice >= target;
     }
     case 'below': {
-      if (previousPrice === null) {
-        return !alert.recurring && currentPrice <= target;
+      if (firstEvaluation && !alert.recurring) {
+        return currentPrice <= target;
       }
-      return previousPrice > target && currentPrice <= target;
+      return previousPrice !== null && previousPrice > target && currentPrice <= target;
     }
     case 'exact': {
       if (previousPrice === null) {
@@ -110,8 +114,16 @@ export class PriceAlertWorker extends EventEmitter {
   private running = false;
 
   private latest = new Map<string, number>();
+  /** Alert ids already evaluated once (drives the first-evaluation semantics above). */
+  private evaluatedOnce = new Set<string>();
   /** Per-symbol promise chain so trigger evaluation for one symbol never overlaps. */
   private chains = new Map<string, Promise<void>>();
+
+  constructor() {
+    super();
+    // One SSE connection = two listeners; the default cap of 10 would warn on the 6th dashboard.
+    this.setMaxListeners(0);
+  }
 
   async start(): Promise<void> {
     if (this.running) {
@@ -161,8 +173,16 @@ export class PriceAlertWorker extends EventEmitter {
     }
 
     this.alerts = data ?? [];
-    const symbols = [...new Set(this.alerts.map((a) => a.binance_symbol.toUpperCase()))];
 
+    // Forget alerts that disappeared so a re-created alert gets its first evaluation again.
+    const activeIds = new Set(this.alerts.map((a) => a.id));
+    for (const id of this.evaluatedOnce) {
+      if (!activeIds.has(id)) {
+        this.evaluatedOnce.delete(id);
+      }
+    }
+
+    const symbols = [...new Set(this.alerts.map((a) => a.binance_symbol.toUpperCase()))];
     if (symbols.length > 0 && this.stream) {
       this.stream.revive();
       this.stream.subscribe(symbols);
@@ -217,18 +237,23 @@ export class PriceAlertWorker extends EventEmitter {
     previousPrice: number | null
   ): Promise<void> {
     const now = Date.now();
+    let consumedOneShot = false;
 
     for (const alert of this.alerts) {
       if (alert.binance_symbol.toUpperCase() !== symbol) {
         continue;
       }
+
+      const firstEvaluation = !this.evaluatedOnce.has(alert.id);
+      this.evaluatedOnce.add(alert.id);
+
       if (!alert.recurring && alert.triggered_at) {
         continue;
       }
       if (isInCooldown(alert, now)) {
         continue;
       }
-      if (!shouldTriggerAlert(alert, currentPrice, previousPrice)) {
+      if (!shouldTriggerAlert(alert, currentPrice, previousPrice, firstEvaluation)) {
         continue;
       }
 
@@ -238,11 +263,10 @@ export class PriceAlertWorker extends EventEmitter {
       }
 
       // Update local state immediately so the next tick does not re-fire before the refresh.
-      if (alert.recurring) {
-        alert.last_triggered_at = triggeredAt;
-      } else {
+      alert.last_triggered_at = triggeredAt;
+      if (!alert.recurring) {
         alert.triggered_at = triggeredAt;
-        alert.last_triggered_at = triggeredAt;
+        consumedOneShot = true;
       }
 
       const event: PriceTriggeredEvent = {
@@ -261,11 +285,7 @@ export class PriceAlertWorker extends EventEmitter {
       });
     }
 
-    if (
-      this.alerts.some(
-        (a) => !a.recurring && a.triggered_at && a.binance_symbol.toUpperCase() === symbol
-      )
-    ) {
+    if (consumedOneShot) {
       this.alerts = this.alerts.filter((a) => a.recurring || !a.triggered_at);
     }
   }

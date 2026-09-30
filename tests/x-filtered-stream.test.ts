@@ -51,12 +51,28 @@ function mockXAndSupabase(options: {
     rpcCalls: [] as Record<string, unknown>[],
   };
 
+  const rules: { id: string; value: string; tag?: string }[] = [...(options.remoteRules ?? [])];
+  let nextId = 1000;
+
   server.use(
-    http.get(`${X_API}/tweets/search/stream/rules`, () =>
-      HttpResponse.json({ data: options.remoteRules ?? [] })
-    ),
+    http.get(`${X_API}/tweets/search/stream/rules`, () => HttpResponse.json({ data: rules })),
     http.post(`${X_API}/tweets/search/stream/rules`, async ({ request }) => {
-      captured.ruleBodies.push((await request.json()) as Record<string, unknown>);
+      const body = (await request.json()) as {
+        add?: { value: string; tag: string }[];
+        delete?: { ids: string[] };
+      };
+      captured.ruleBodies.push(body);
+      if (body.delete) {
+        for (const id of body.delete.ids) {
+          const index = rules.findIndex((r) => r.id === id);
+          if (index !== -1) {
+            rules.splice(index, 1);
+          }
+        }
+      }
+      for (const rule of body.add ?? []) {
+        rules.push({ id: String(nextId++), ...rule });
+      }
       return HttpResponse.json({ meta: { sent: new Date().toISOString() } });
     }),
     http.get(`${X_API}/tweets/search/stream`, ({ request }) => {

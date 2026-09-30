@@ -1,11 +1,21 @@
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
 import { normalizeAccount } from '@/lib/services/twitter/matching';
-import { PLANS, getPlanLimits, type PlanId, type PlanLimits } from './plan-limits';
+import {
+  PLANS,
+  getPlanLimits,
+  type PlanId,
+  type PlanLimits,
+  type ChannelType,
+} from './plan-limits';
 
 export { PLANS, getPlanLimits };
-export type { PlanId, PlanLimits };
+export type { PlanId, PlanLimits, ChannelType };
 
 // --- DB helpers ---
+
+function toPlanId(value: string | null | undefined): PlanId {
+  return value && value in PLANS ? (value as PlanId) : 'free';
+}
 
 export async function getUserPlan(userId: string): Promise<PlanId> {
   const supabase = createServiceSupabaseClient();
@@ -15,8 +25,7 @@ export async function getUserPlan(userId: string): Promise<PlanId> {
     .eq('user_id', userId)
     .maybeSingle();
 
-  const plan = data?.plan;
-  return plan && plan in PLANS ? (plan as PlanId) : 'free';
+  return toPlanId(data?.plan);
 }
 
 export async function getUserAlertCount(userId: string): Promise<number> {
@@ -99,6 +108,7 @@ export async function checkAlertLimit(userId: string): Promise<LimitCheck> {
 /**
  * Everything that makes a social alert cost money on the X stream:
  * total alerts, distinct watched accounts, keywords per alert, replies opt-in.
+ * Called on creation AND on re-activation (limits only count active alerts).
  */
 export async function checkSocialAlertLimits(
   userId: string,
@@ -141,51 +151,81 @@ export async function checkSocialAlertLimits(
     return {
       allowed: false,
       plan,
-      error: `Including replies and quotes requires the Premium plan.`,
+      error: 'Including replies and quotes requires the Premium plan.',
     };
   }
 
   return { allowed: true, plan };
 }
 
+/** Notification channels are a plan feature (Free = Telegram only). */
+export async function checkChannelAccess(
+  userId: string,
+  channelType: string
+): Promise<{ allowed: boolean; error?: string; plan: PlanId }> {
+  const plan = await getUserPlan(userId);
+  const limits = getPlanLimits(plan);
+  const allowed = limits.channels.includes(channelType as ChannelType);
+
+  return {
+    allowed,
+    plan,
+    error: allowed
+      ? undefined
+      : `The ${limits.label} plan only delivers to ${limits.channels.join(', ')}.${upgradeHint(limits)}`,
+  };
+}
+
+/** Channels the user's plan is allowed to deliver to. */
+export async function getAllowedChannels(userId: string): Promise<ChannelType[]> {
+  return getPlanLimits(await getUserPlan(userId)).channels;
+}
+
 /**
  * Users whose monthly matched-tweet quota is exhausted. Their alerts are excluded from the X
- * rules until the next UTC month so we stop paying for posts we will not deliver.
+ * rules and from matching until the next UTC month so we stop paying for posts we will not
+ * deliver. One exact count query per user: PostgREST would silently truncate a row scan at
+ * its 1000-row default and make Premium quotas unreachable.
  */
 export async function getUsersOverTweetQuota(userIds: string[]): Promise<Set<string>> {
-  if (userIds.length === 0) {
+  const unique = [...new Set(userIds)];
+  if (unique.length === 0) {
     return new Set();
   }
+
   const supabase = createServiceSupabaseClient();
-  const unique = [...new Set(userIds)];
+  const since = startOfUtcMonth();
 
-  const [plansResult, triggersResult] = await Promise.all([
-    supabase.from('user_plans').select('user_id, plan').in('user_id', unique),
-    supabase
-      .from('alert_triggers')
-      .select('user_id')
-      .eq('type', 'social')
-      .in('user_id', unique)
-      .gte('triggered_at', startOfUtcMonth()),
-  ]);
-
-  const planByUser = new Map<string, PlanId>();
-  for (const row of plansResult.data ?? []) {
-    planByUser.set(row.user_id, row.plan in PLANS ? (row.plan as PlanId) : 'free');
-  }
-
-  const counts = new Map<string, number>();
-  for (const row of triggersResult.data ?? []) {
-    counts.set(row.user_id, (counts.get(row.user_id) ?? 0) + 1);
-  }
+  const { data: planRows } = await supabase
+    .from('user_plans')
+    .select('user_id, plan')
+    .in('user_id', unique);
+  const planByUser = new Map((planRows ?? []).map((row) => [row.user_id, toPlanId(row.plan)]));
 
   const over = new Set<string>();
-  for (const userId of unique) {
-    const limits = getPlanLimits(planByUser.get(userId) ?? 'free');
-    if ((counts.get(userId) ?? 0) >= limits.monthlyTweetQuota) {
-      over.add(userId);
-    }
+  const CONCURRENCY = 10;
+
+  for (let i = 0; i < unique.length; i += CONCURRENCY) {
+    const batch = unique.slice(i, i + CONCURRENCY);
+    const counts = await Promise.all(
+      batch.map((userId) =>
+        supabase
+          .from('alert_triggers')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('type', 'social')
+          .gte('triggered_at', since)
+      )
+    );
+
+    batch.forEach((userId, index) => {
+      const limits = getPlanLimits(planByUser.get(userId) ?? 'free');
+      if ((counts[index].count ?? 0) >= limits.monthlyTweetQuota) {
+        over.add(userId);
+      }
+    });
   }
+
   return over;
 }
 

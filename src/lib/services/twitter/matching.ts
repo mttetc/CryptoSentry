@@ -1,5 +1,5 @@
 // Pure functions: account normalization, keyword matching and X filtered-stream rule building.
-// No I/O here so this module is unit-testable with `npx tsx scripts/test-pipeline.ts`.
+// No I/O here; covered by tests/matching.test.ts (vitest).
 
 import type { SocialAlertRow, TweetData } from './types';
 
@@ -91,8 +91,10 @@ export interface StreamRule {
 
 function quoteKeyword(keyword: string): string {
   const kw = normalizeKeyword(keyword);
-  // Exact-phrase for multi-word keywords, bare token otherwise. X operators are case-insensitive.
-  return /[\s"]/.test(kw) ? `"${kw.replaceAll('"', '')}"` : kw;
+  // A bare token may only hold letters, digits, _ and a leading # or $; anything else (spaces,
+  // Hyphens, colons, parentheses and the like are X rule syntax and force an exact-phrase quote.
+  const bareToken = /^[#$]?[\p{L}\p{N}_]+$/u;
+  return bareToken.test(kw) ? kw : `"${kw.replaceAll('"', '')}"`;
 }
 
 /**

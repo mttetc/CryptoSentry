@@ -1,12 +1,8 @@
 import { sendTelegramMessage, getTelegramUser } from './telegram-utils';
 import type { AlertNotification } from '@/types/notifications';
+import { escapeHtml } from '@/actions/messaging/utils/escape-html';
 
 // --- Pure functions ---
-
-/** Telegram parse_mode=HTML: tweet text must be escaped or messages containing "<" fail. */
-export function escapeHtml(text: string): string {
-  return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-}
 
 const SENTIMENT_ICON: Record<string, string> = {
   bullish: '🟢',

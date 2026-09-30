@@ -35,7 +35,8 @@ export class SocialMonitor {
     this.isMonitoring = true;
 
     await this.doRefresh();
-    await this.provider.start((tweets) => processTweets(tweets));
+    // Match against the quota-filtered alert set, with persistence kept.
+    await this.provider.start((tweets) => processTweets(tweets, { alerts: this.eligibleAlerts }));
 
     this.refreshTimer = setInterval(() => {
       this.refreshAlerts().catch(console.error);

@@ -107,7 +107,7 @@ export async function updatePriceAlert(
 
     const { data: existingAlert } = await supabase
       .from('price_alerts')
-      .select('user_id')
+      .select('user_id, is_active')
       .eq('id', validated.id)
       .maybeSingle();
 
@@ -118,6 +118,14 @@ export async function updatePriceAlert(
     const updateData = buildUpdateData(validated);
     if (Object.keys(updateData).length === 0) {
       return { success: true };
+    }
+
+    // Re-activating (explicitly, or implicitly via a direction change) counts like creating.
+    if (updateData.is_active === true && !existingAlert.is_active) {
+      const alertLimit = await checkAlertLimit(userId);
+      if (!alertLimit.allowed) {
+        return { success: false, error: alertLimit.error };
+      }
     }
 
     const { error } = await supabase

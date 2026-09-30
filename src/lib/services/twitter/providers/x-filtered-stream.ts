@@ -161,8 +161,10 @@ export class XFilteredStreamProvider implements TweetProvider {
 
     await this.loadUsage();
     this.usageFlushTimer = setInterval(() => {
-      this.flushUsage().catch(console.error);
-      this.rolloverMonthIfNeeded();
+      // Flush the old month's pending count BEFORE rolling the month over.
+      this.flushUsage()
+        .catch(console.error)
+        .finally(() => this.rolloverMonthIfNeeded());
     }, USAGE_FLUSH_INTERVAL_MS);
 
     this.connectLoop().catch((error) => {
@@ -204,20 +206,31 @@ export class XFilteredStreamProvider implements TweetProvider {
     const remote = await this.fetchRules();
     const { toAdd, toDeleteIds } = diffRules(desired, remote);
 
+    let rejected = 0;
     if (toDeleteIds.length > 0) {
-      await this.postRules({ delete: { ids: toDeleteIds } });
+      rejected += await this.postRules({ delete: { ids: toDeleteIds } });
     }
     if (toAdd.length > 0) {
       // X accepts batches; keep them small to get readable error payloads.
       for (let i = 0; i < toAdd.length; i += 50) {
-        await this.postRules({ add: toAdd.slice(i, i + 50) });
+        rejected += await this.postRules({ add: toAdd.slice(i, i + 50) });
       }
     }
 
-    this.ruleCount = desired.length;
+    // Trust X, not our intent: rules it rejected must not be counted as active.
+    const active = toAdd.length > 0 || toDeleteIds.length > 0 ? await this.fetchRules() : remote;
+    const desiredValues = new Set(desired.map((r) => r.value));
+    this.ruleCount = active.filter((r) => desiredValues.has(r.value)).length;
+    const missing = desired.length - this.ruleCount;
+    if (missing > 0) {
+      this.droppedRules += missing;
+      this.lastError = `${missing} rule(s) rejected by X`;
+      console.error(`[XStream] ${missing} rule(s) rejected by X (${rejected} error entries)`);
+    }
+
     if (toAdd.length > 0 || toDeleteIds.length > 0) {
       console.warn(
-        `[XStream] Rules synced: ${desired.length} active (+${toAdd.length} / -${toDeleteIds.length})`
+        `[XStream] Rules synced: ${this.ruleCount} active (+${toAdd.length} / -${toDeleteIds.length})`
       );
     }
   }
@@ -238,7 +251,8 @@ export class XFilteredStreamProvider implements TweetProvider {
     return json.data ?? [];
   }
 
-  private async postRules(body: Record<string, unknown>): Promise<void> {
+  /** Returns the number of error entries X reported for this batch. */
+  private async postRules(body: Record<string, unknown>): Promise<number> {
     const res = await fetch(`${API_BASE}/tweets/search/stream/rules`, {
       method: 'POST',
       headers: this.headers(),
@@ -250,7 +264,9 @@ export class XFilteredStreamProvider implements TweetProvider {
     const json = (await res.json()) as { errors?: unknown[] };
     if (json.errors && json.errors.length > 0) {
       console.error('[XStream] Rule errors:', JSON.stringify(json.errors));
+      return json.errors.length;
     }
+    return 0;
   }
 
   // --- usage cap ---
@@ -291,12 +307,17 @@ export class XFilteredStreamProvider implements TweetProvider {
       return;
     }
     const count = this.pendingUsage;
+    const month = this.usageMonth;
     this.pendingUsage = 0;
     const supabase = createServiceSupabaseClient();
     const { data, error } = await supabase.rpc('increment_x_stream_usage', {
-      p_month: this.usageMonth,
+      p_month: month,
       p_count: count,
     });
+    if (month !== this.usageMonth) {
+      // The month rolled over while this flush was in flight: the result belongs to the old month.
+      return;
+    }
     if (error) {
       console.error('[XStream] Failed to persist usage:', error);
       this.pendingUsage += count; // Retry later

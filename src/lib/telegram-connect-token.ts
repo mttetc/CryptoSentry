@@ -4,7 +4,9 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 // Token layout: <base64url(userId)>--<expiresAtSeconds>--<hmac16>
 // The userId may itself contain dashes, hence the double-dash separator.
 
-export const CONNECT_TOKEN_TTL_MS = 10 * 60 * 1000;
+import { CONNECT_TOKEN_TTL_MS } from './telegram-connect-constants';
+
+export { CONNECT_TOKEN_TTL_MS };
 
 function requireSecret(): string {
   const secret = process.env.TELEGRAM_CONNECT_SECRET ?? process.env.BETTER_AUTH_SECRET;

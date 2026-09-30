@@ -5,6 +5,7 @@ import { sendEmailAlert } from '@/actions/messaging/providers/email';
 import { sendDiscordAlert } from '@/actions/messaging/providers/discord';
 import { sendSmsAlert } from '@/actions/messaging/providers/sms';
 import { createServiceSupabaseClient } from '@/lib/supabase/server';
+import { getAllowedChannels } from '@/lib/config/plans';
 import type { AlertNotification, ChannelResult, NotificationResult } from '@/types/notifications';
 import type { Database } from '@/types/database';
 
@@ -75,7 +76,9 @@ async function fetchActiveChannels(userId: string, alertType: string): Promise<C
     return [];
   }
 
-  return (data as ChannelRow[]) ?? [];
+  // A downgraded plan keeps its channel rows; delivery still honours the current plan.
+  const allowed = new Set<string>(await getAllowedChannels(userId));
+  return ((data as ChannelRow[]) ?? []).filter((c) => allowed.has(c.channel_type));
 }
 
 async function persistDeliveryLog(entry: DeliveryLogInsert): Promise<void> {

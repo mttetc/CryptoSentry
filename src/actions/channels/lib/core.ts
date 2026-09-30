@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/api/auth';
+import { checkChannelAccess } from '@/lib/config/plans';
 import type { ActionState } from '@/types/actions';
 import type { Database, Json } from '@/types/database';
 
@@ -95,6 +96,12 @@ export async function addNotificationChannel(
     const { supabase, userId } = await requireAuth();
     const validated = addChannelSchema.parse(input);
 
+    // Channels are a plan feature (Free = Telegram only)
+    const access = await checkChannelAccess(userId, validated.channelType);
+    if (!access.allowed) {
+      return { success: false, error: access.error };
+    }
+
     // Validate the channel-specific config
     const configResult = validateChannelConfig(validated.channelType, validated.config);
     if (!configResult.success) {
@@ -129,12 +136,19 @@ export async function updateNotificationChannel(
     // Verify ownership
     const { data: existing } = await supabase
       .from('notification_channels')
-      .select('user_id')
+      .select('user_id, channel_type')
       .eq('id', validated.id)
-      .single();
+      .maybeSingle();
 
     if (!existing || existing.user_id !== userId) {
       return { success: false, error: 'Channel not found' };
+    }
+
+    if (validated.isActive === true) {
+      const access = await checkChannelAccess(userId, existing.channel_type);
+      if (!access.allowed) {
+        return { success: false, error: access.error };
+      }
     }
 
     // Validate config if provided

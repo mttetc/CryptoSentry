@@ -1,5 +1,7 @@
 'use client';
 
+import { CONNECT_TOKEN_TTL_MS } from '@/lib/telegram-connect-constants';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
@@ -24,7 +26,7 @@ import {
 } from '@/actions/telegram';
 
 const POLL_INTERVAL_MS = 3000;
-const LINK_TTL_MS = 10 * 60 * 1000;
+const LINK_TTL_MS = CONNECT_TOKEN_TTL_MS;
 
 interface TelegramQrConnectProps {
   initialLink: string;

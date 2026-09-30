@@ -68,6 +68,7 @@ function mockSupabase(alerts: AlertRow[]) {
       return HttpResponse.json([], { status: 201 });
     }),
     // Notification path: no channels configured, Telegram not connected -> logged, not sent
+    http.get(`${SUPABASE_REST}/user_plans`, () => HttpResponse.json([])),
     http.get(`${SUPABASE_REST}/notification_channels`, () => HttpResponse.json([])),
     http.get(`${SUPABASE_REST}/user_telegram_settings`, () => HttpResponse.json([])),
     http.post(`${SUPABASE_REST}/alert_delivery_logs`, async ({ request }) => {
@@ -92,40 +93,32 @@ const baseAlert: AlertRow = {
 };
 
 describe('shouldTriggerAlert', () => {
-  it('above/below: non-recurring fires on first observation if already met, recurring needs a crossing', () => {
-    expect(
-      shouldTriggerAlert({ direction: 'above', target_price: 100, recurring: false }, 105, null)
-    ).toBe(true);
-    expect(
-      shouldTriggerAlert({ direction: 'above', target_price: 100, recurring: true }, 105, null)
-    ).toBe(false);
-    expect(
-      shouldTriggerAlert({ direction: 'above', target_price: 100, recurring: true }, 105, 99)
-    ).toBe(true);
-    expect(
-      shouldTriggerAlert({ direction: 'above', target_price: 100, recurring: true }, 106, 105)
-    ).toBe(false);
-    expect(
-      shouldTriggerAlert({ direction: 'below', target_price: 100, recurring: true }, 95, 101)
-    ).toBe(true);
-    expect(
-      shouldTriggerAlert({ direction: 'below', target_price: 100, recurring: true }, 94, 95)
-    ).toBe(false);
+  const above = { direction: 'above' as const, target_price: 100 };
+  const below = { direction: 'below' as const, target_price: 100 };
+  const exact = { direction: 'exact' as const, target_price: 100 };
+
+  it('one-shot above/below fire on the first evaluation if the level is already met', () => {
+    expect(shouldTriggerAlert({ ...above, recurring: false }, 105, null, true)).toBe(true);
+    expect(shouldTriggerAlert({ ...above, recurring: false }, 105, 104, true)).toBe(true);
+    expect(shouldTriggerAlert({ ...above, recurring: false }, 95, null, true)).toBe(false);
+    expect(shouldTriggerAlert({ ...below, recurring: false }, 95, 96, true)).toBe(true);
+  });
+
+  it('after the first evaluation, everything needs a real crossing', () => {
+    expect(shouldTriggerAlert({ ...above, recurring: false }, 105, 104, false)).toBe(false);
+    expect(shouldTriggerAlert({ ...above, recurring: false }, 105, 99, false)).toBe(true);
+    expect(shouldTriggerAlert({ ...above, recurring: true }, 105, null, true)).toBe(false);
+    expect(shouldTriggerAlert({ ...above, recurring: true }, 105, 99, false)).toBe(true);
+    expect(shouldTriggerAlert({ ...above, recurring: true }, 106, 105, false)).toBe(false);
+    expect(shouldTriggerAlert({ ...below, recurring: true }, 95, 101, false)).toBe(true);
+    expect(shouldTriggerAlert({ ...below, recurring: true }, 94, 95, false)).toBe(false);
   });
 
   it('exact fires on any crossing and never on the first observation', () => {
-    expect(
-      shouldTriggerAlert({ direction: 'exact', target_price: 100, recurring: true }, 100, null)
-    ).toBe(false);
-    expect(
-      shouldTriggerAlert({ direction: 'exact', target_price: 100, recurring: true }, 101, 99)
-    ).toBe(true);
-    expect(
-      shouldTriggerAlert({ direction: 'exact', target_price: 100, recurring: true }, 99, 101)
-    ).toBe(true);
-    expect(
-      shouldTriggerAlert({ direction: 'exact', target_price: 100, recurring: true }, 102, 101)
-    ).toBe(false);
+    expect(shouldTriggerAlert({ ...exact, recurring: true }, 100, null, true)).toBe(false);
+    expect(shouldTriggerAlert({ ...exact, recurring: true }, 101, 99, false)).toBe(true);
+    expect(shouldTriggerAlert({ ...exact, recurring: true }, 99, 101, false)).toBe(true);
+    expect(shouldTriggerAlert({ ...exact, recurring: true }, 102, 101, false)).toBe(false);
   });
 });
 
@@ -144,6 +137,7 @@ describe('PriceAlertWorker', () => {
     push({ BTCUSDT: 100_500 });
     push({ BTCUSDT: 101_000 });
     await waitFor(() => captured.deliveryLogs.length === 1);
+    expect(worker.listenerCount('triggered')).toBe(1);
     worker.stop();
 
     expect(events).toHaveLength(1);

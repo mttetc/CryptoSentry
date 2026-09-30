@@ -120,12 +120,24 @@ export async function updateSocialAlert(
 
     const { data: existingAlert } = await supabase
       .from('social_alerts')
-      .select('user_id')
+      .select('user_id, account, keywords, include_replies, is_active')
       .eq('id', validated.id)
       .maybeSingle();
 
     if (!existingAlert || existingAlert.user_id !== userId) {
       return { success: false, error: 'Alert not found' };
+    }
+
+    // Re-activating counts like creating: limits only consider active alerts.
+    if (validated.isActive === true && !existingAlert.is_active) {
+      const limits = await checkSocialAlertLimits(userId, {
+        account: existingAlert.account,
+        keywords: validated.keywords ?? existingAlert.keywords,
+        includeReplies: validated.includeReplies ?? existingAlert.include_replies,
+      });
+      if (!limits.allowed) {
+        return { success: false, error: limits.error };
+      }
     }
 
     if (validated.keywords || validated.includeReplies) {

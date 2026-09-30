@@ -26,6 +26,7 @@ export interface SocialAlertRow {
 export interface AnalyzedMatch {
   alert: SocialAlertRow;
   tweet: TweetData;
+  matchedKeywords: string[];
   sentiment: 'bullish' | 'bearish' | 'neutral';
   summary: string;
 }

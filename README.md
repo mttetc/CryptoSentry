@@ -47,13 +47,13 @@ The X stream and the price worker start with the server. They need a persistent 
 
 ## Scripts
 
-| Command                             | Purpose                                                          |
-| ----------------------------------- | ---------------------------------------------------------------- |
-| `npm run dev` / `build` / `start`   | Next.js                                                          |
-| `npm test`                          | Pure matching / rule-building tests (`scripts/test-pipeline.ts`) |
-| `npm run type-check`                | `tsc --noEmit`                                                   |
-| `npm run lint`                      | oxlint                                                           |
-| `npm run telegram:webhook -- <url>` | Register the Telegram webhook (`--info` to inspect)              |
+| Command                             | Purpose                                                             |
+| ----------------------------------- | ------------------------------------------------------------------- |
+| `npm run dev` / `build` / `start`   | Next.js                                                             |
+| `npm test`                          | Vitest + msw suite (`tests/`): X stream, price worker, SSE, webhook |
+| `npm run type-check`                | `tsc --noEmit`                                                      |
+| `npm run lint`                      | oxlint                                                              |
+| `npm run telegram:webhook -- <url>` | Register the Telegram webhook (`--info` to inspect)                 |
 
 In development, `POST /api/ingest/tweets` lets you push fake tweets through the pipeline without X
 (disabled in production).

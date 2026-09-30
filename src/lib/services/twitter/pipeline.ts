@@ -89,9 +89,7 @@ export async function pruneProcessedTweets(): Promise<void> {
 
 // --- AI analysis ---
 
-async function analyzeMatches(
-  matches: Match[]
-): Promise<(AnalyzedMatch & { matchedKeywords: string[] })[]> {
+async function analyzeMatches(matches: Match[]): Promise<AnalyzedMatch[]> {
   // One analysis per distinct tweet, shared across alerts matching it.
   const byTweet = new Map<
     string,
@@ -117,10 +115,7 @@ async function analyzeMatches(
   );
 
   return analyses
-    .filter(
-      (r): r is PromiseFulfilledResult<AnalyzedMatch & { matchedKeywords: string[] }> =>
-        r.status === 'fulfilled'
-    )
+    .filter((r): r is PromiseFulfilledResult<AnalyzedMatch> => r.status === 'fulfilled')
     .map((r) => r.value);
 }
 
